@@ -29,7 +29,7 @@ button.on{background:var(--tint);color:var(--accent)}
 #gl{cursor:crosshair;touch-action:none}#gl.free{cursor:grab}
 #final{display:none;pointer-events:none}
 #clock{position:absolute;top:10px;right:10px;font:600 24px/1.25 var(--num);font-variant-numeric:tabular-nums;color:var(--picture);background:rgba(0,0,0,.6);padding:2px 10px;border-radius:6px;pointer-events:none;z-index:2}
-#badges{position:absolute;top:10px;left:10px;display:flex;gap:6px;pointer-events:none;z-index:2}
+#badges{position:absolute;top:10px;left:10px;right:190px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;pointer-events:none;z-index:2}
 #badges b{background:var(--danger);color:var(--picture);padding:2px 8px;border-radius:6px;font-weight:600;font-size:12px;display:none}
 #caption{position:absolute;left:0;right:0;bottom:12px;padding:0 12px;text-align:center;pointer-events:none;z-index:2}
 #caption span{background:rgba(0,0,0,.62);padding:3px 10px;border-radius:6px;color:var(--picture);-webkit-box-decoration-break:clone;box-decoration-break:clone}
@@ -47,7 +47,7 @@ button.on{background:var(--tint);color:var(--accent)}
 #pNote{min-width:220px;background:var(--accent);color:var(--on-accent)}
 @media (hover:hover){#play:hover{background:#403E3C}#pNote:hover{background:var(--accent-hover)}}
 #moreB{width:48px;padding:0;margin-left:auto;background:none;color:var(--text-2);order:9}
-#mix{flex:1;min-width:0;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mix:empty{display:none}
+#mix{min-width:0;max-width:100%;background:rgba(0,0,0,.72);color:var(--text);padding:1px 8px;border-radius:6px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#mix:empty{display:none}
 
 /* Everything else, folded away */
 #more{grid-column:1;grid-row:3;display:none;background:var(--surface);padding:0 var(--gap) 10px;max-height:40vh;overflow:auto;overscroll-behavior:contain}#more.open{display:block}
@@ -131,11 +131,10 @@ button.on{background:var(--tint);color:var(--accent)}
   #view{flex:none;width:100%;aspect-ratio:16/9;max-height:62vh}
   #row,#more,#ctl{flex:none}
   #clock{font-size:16px;top:6px;right:6px;padding:1px 6px}
-  #badges{top:6px;left:6px}#badges b{font-size:11px}
+  #badges{top:6px;left:6px;right:112px}#badges b{font-size:11px}
   #caption{bottom:6px;font-size:13px}
   #row{padding:8px var(--gap)}
   #play{flex:0 0 32%;min-width:0}#pNote{flex:1;min-width:0}#moreB{flex:0 0 44px;width:44px;margin:0}
-  #mix{position:absolute;right:var(--gap);top:-26px;flex:none;max-width:70%;background:rgba(0,0,0,.72);color:var(--text);padding:1px 8px;border-radius:6px;font-size:12px}
   #more{max-height:32dvh}
   #detail{height:148px}
   #side{flex:1;min-height:0;border-inline-start:0}
@@ -150,10 +149,10 @@ button.on{background:var(--tint);color:var(--accent)}
   #row{padding:6px var(--gap)}
   #play,#pNote,#moreB{height:44px}
   #play{flex:0 0 30%;min-width:0}#pNote{flex:1;min-width:0}#moreB{flex:0 0 44px;width:44px;margin:0}
-  #mix{position:absolute;right:var(--gap);top:-26px;flex:none;max-width:70%;background:rgba(0,0,0,.72);color:var(--text);padding:1px 8px;border-radius:6px;font-size:12px}
   #more{max-height:50dvh}
   #ctl{padding-bottom:6px}#over{margin:0}#detail{display:none}
   #clock{font-size:16px;top:6px;right:6px;padding:1px 6px}
+  #badges{top:6px;left:6px;right:112px}
   #caption{bottom:6px;font-size:13px}
   #compose{padding:8px var(--gap)}
   #where{margin-bottom:4px}
@@ -166,8 +165,8 @@ button.on{background:var(--tint);color:var(--accent)}
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.1v13.8a.6.6 0 0 0 .9.5l10.7-6.9a.6.6 0 0 0 0-1L8.9 4.6a.6.6 0 0 0-.9.5z"/></symbol><symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4.5" height="14" rx="1"/><rect x="13.5" y="5" width="4.5" height="14" rx="1"/></symbol><symbol id="i-note" viewBox="0 0 24 24"><path d="M16.9 3.6a2 2 0 0 1 2.8 0l.7.7a2 2 0 0 1 0 2.8L8.6 18.9a2 2 0 0 1-.9.5l-3.9 1a.6.6 0 0 1-.7-.7l1-3.9a2 2 0 0 1 .5-.9z"/></symbol><symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></symbol><symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol><symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4l9 16H3zM12 10v4M12 17.2v.1"/></symbol></svg>
 <div id="wrap">
   <div id="view"><div id="stage"><canvas id="gl" width="960" height="540"></canvas><canvas id="final" width="1920" height="1080"></canvas>
-    <div id="pins"></div><div id="clock">00:00.000</div><div id="badges"><b id="bFree">CAMERA TỰ DO</b><b id="bFinal">CHẤT LƯỢNG FINAL</b><b id="bLoop">LẶP SHOT</b></div><div id="caption"></div><div id="load"></div></div><pre id="err"></pre></div>
-  <div id="row"><button id="play"><svg class="i"><use id="playIcon" href="#i-play"/></svg><span id="playText">Phát</span></button><button id="pNote"><svg class="i"><use href="#i-note"/></svg>Ghi chú</button><span id="mix" role="status"></span><button id="moreB" title="Các nút khác" aria-label="Các nút khác" aria-expanded="false"><svg class="i"><use href="#i-more"/></svg></button></div>
+    <div id="pins"></div><div id="clock">00:00.000</div><div id="badges"><b id="bFree">CAMERA TỰ DO</b><b id="bFinal">CHẤT LƯỢNG FINAL</b><b id="bLoop">LẶP SHOT</b><span id="mix" role="status"></span></div><div id="caption"></div><div id="load"></div></div><pre id="err"></pre></div>
+  <div id="row"><button id="play"><svg class="i"><use id="playIcon" href="#i-play"/></svg><span id="playText">Phát</span></button><button id="pNote"><svg class="i"><use href="#i-note"/></svg>Ghi chú</button><button id="moreB" title="Các nút khác" aria-label="Các nút khác" aria-expanded="false"><svg class="i"><use href="#i-more"/></svg></button></div>
   <div id="more">
     <div id="phone"><button id="pBack5">-5s</button><button id="pBack">-1 hình</button><button id="pFwd">+1 hình</button><button id="pFwd5">+5s</button><button id="pOut">Timeline −</button><button id="pIn">Timeline +</button></div>
     <div id="moreRow"><button id="prev" title="[">‹ Shot</button><button id="next" title="]">Shot ›</button>
