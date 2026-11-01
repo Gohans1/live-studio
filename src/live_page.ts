@@ -7,8 +7,10 @@ import { EDIT, fromSource, setEdit, toSource } from "./edit";
 
 const FPS = 30;
 const PHONE = matchMedia("(pointer: coarse)").matches && Math.min(innerWidth, innerHeight) < 600;
-if (PHONE) window.__assets = "/lite/";
-const MIX_URL = PHONE ? "/mix_phone.mp3" : "/mix.wav";
+// Anything but this machine itself is on a line that costs: small copies of everything, whatever the screen
+const AWAY = PHONE || !["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+if (AWAY) window.__assets = "/lite/";
+const MIX_URL = AWAY ? "/mix_small.webm" : "/mix.wav";
 const $ = (id) => document.getElementById(id);
 const canvas = $("gl"), audio = $("audio"), stage = $("stage"), text = $("text");
 const pad = (n, w = 2) => String(n).padStart(w, "0");
@@ -45,7 +47,8 @@ const seek = (x) => {
 };
 const setPlaying = (p) => {
   playing = p;
-  $("play").textContent = p ? "❚❚ Dừng" : "▶ Phát";
+  $("playIcon").setAttribute("href", p ? "#i-pause" : "#i-play");
+  $("playText").textContent = p ? "Dừng" : "Phát";
   if (p) { clockStart = performance.now() - t * 1000; audio.currentTime = t; audio.play().catch(() => {}); ctx.resume(); } else { audio.pause(); seek(Math.round(t * FPS) / FPS); }
 };
 
@@ -56,7 +59,7 @@ const setAudio = (url) => {
 };
 // A phone line can stall for seconds: the whole mix comes down once and then plays from memory, so nothing the line does can cut it
 let mixLoad = 0, mixBlob = "";
-const loadPhoneMix = async () => {
+const loadWholeMix = async () => {
   const mine = ++mixLoad;
   for (let tries = 0; mine === mixLoad; tries++) {
     try {
@@ -72,17 +75,17 @@ const loadPhoneMix = async () => {
       }
       if (mine !== mixLoad) return;
       URL.revokeObjectURL(mixBlob);
-      mixBlob = URL.createObjectURL(new Blob(parts, { type: "audio/mpeg" }));
+      mixBlob = URL.createObjectURL(new Blob(parts, { type: "audio/webm" }));
       setAudio(mixBlob);
       flash("tiếng đã tải xong");
       return;
     } catch {
-      $("mix").textContent = `mạng chập chờn, tải lại tiếng lần ${tries + 1}...`;
+      $("mix").textContent = `mạng chập chờn, tải lại tiếng lần ${tries + 1}…`;
       await new Promise((done) => setTimeout(done, 2000));
     }
   }
 };
-const loadMix = () => { if (PHONE) loadPhoneMix(); else setAudio(MIX_URL + "?" + Date.now()); };
+const loadMix = () => { if (AWAY) loadWholeMix(); else setAudio(MIX_URL + "?" + Date.now()); };
 // The browser can pause the sound by itself (a notification, autoplay rules) while the picture runs on: pick it up where the picture is
 const keepSound = () => { if (playing && audio.paused && audio.readyState > 0) { audio.currentTime = t; audio.play().catch(() => {}); } };
 setInterval(keepSound, 1000);
@@ -158,13 +161,13 @@ const momentStrip = (at) => {
   const w = 400, h = 225, c = document.createElement("canvas");
   c.width = w * STRIP.length; c.height = h;
   const g = c.getContext("2d");
-  g.font = "bold 20px Consolas";
+  g.font = "bold 20px Consolas,monospace";
   STRIP.forEach((d, i) => {
     const x = Math.min(Math.max(0, at + d), DURATION - 0.02);
     render(x);
     g.drawImage(canvas, i * w, 0, w, h);
     g.fillStyle = "rgba(0,0,0,.7)"; g.fillRect(i * w + 4, 4, 128, 28);
-    g.fillStyle = d === 0 ? "#ffd23e" : "#fff"; g.fillText(stamp(x), i * w + 8, 25);
+    g.fillStyle = d === 0 ? "#3AA99F" : "#fff"; g.fillText(stamp(x), i * w + 8, 25);
     g.fillStyle = "#000"; g.fillRect(i * w, 0, 2, h);
   });
   return c.toDataURL("image/jpeg", 0.8);
@@ -202,8 +205,8 @@ const snapshot = (pin, at = t) => {
   c.width = 960; c.height = 540;
   const g = c.getContext("2d");
   g.drawImage(finalOn && finalRender ? $("final") : canvas, 0, 0, 960, 540);
-  if (pin) { g.strokeStyle = "#ffd23e"; g.lineWidth = 3; g.beginPath(); g.arc(pin.x * 960, pin.y * 540, 14, 0, 7); g.stroke(); g.strokeStyle = "#000"; g.lineWidth = 1; g.beginPath(); g.arc(pin.x * 960, pin.y * 540, 16, 0, 7); g.stroke(); }
-  g.font = "bold 24px Consolas"; g.textAlign = "right"; g.fillStyle = "rgba(0,0,0,.7)"; g.fillRect(790, 8, 162, 34); g.fillStyle = "#fff"; g.fillText(stamp(at), 944, 33);
+  if (pin) { g.strokeStyle = "#3AA99F"; g.lineWidth = 3; g.beginPath(); g.arc(pin.x * 960, pin.y * 540, 14, 0, 7); g.stroke(); g.strokeStyle = "#000"; g.lineWidth = 1; g.beginPath(); g.arc(pin.x * 960, pin.y * 540, 16, 0, 7); g.stroke(); }
+  g.font = "bold 24px Consolas,monospace"; g.textAlign = "right"; g.fillStyle = "rgba(0,0,0,.7)"; g.fillRect(790, 8, 162, 34); g.fillStyle = "#fff"; g.fillText(stamp(at), 944, 33);
   return c.toDataURL("image/jpeg", 0.85);
 };
 
@@ -212,7 +215,7 @@ const whereText = (n) => `${stamp(n.t)} | shot ${n.shot} (${n.shotName})${n.pin 
 const showBox = () => {
   const old = compose.editing;
   $("where").textContent = old ? `Sửa ghi chú ${compose.time} | shot ${compose.shot}` : whereText(compose);
-  $("overwrite").style.display = old ? "block" : "none";
+  $("overwrite").style.display = old ? "flex" : "none";
   $("compose").classList.add("open");
   listNotes();
 };
@@ -339,7 +342,7 @@ const keepEdits = (all) => { try { localStorage.setItem("unsentEdits", JSON.stri
 const queueOp = (id, op) => { keepEdits({ ...unsentEdits(), [id]: op }); };
 const showSaved = (state) => {
   const el = $("saved");
-  el.textContent = state === "fail" ? "Chưa gửi được, vẫn giữ trên máy này, đang thử lại" : state === "busy" ? "Đang lưu..." : notes.length ? "Đã lưu hết" : "";
+  el.textContent = state === "fail" ? "Chưa gửi được, vẫn giữ trên máy này, đang thử lại" : state === "busy" ? "Đang lưu…" : notes.length ? "Đã lưu hết" : "";
   el.className = state ?? "";
 };
 let flushing = false;
@@ -430,15 +433,17 @@ const noteCard = (n) => {
   const el = document.createElement("div");
   el.className = `note${compose?.editing === n.id ? " editing" : ""}`;
   el.dataset.t = noteAt(n);
-  el.innerHTML = `<div class="h"><button class="time" title="Nhảy tới đây"></button><span class="w"></span><button class="del" title="Xóa">×</button></div><div class="b"></div>`;
+  el.innerHTML = `<div class="h"><button class="time" title="Nhảy tới đây"></button><span class="w"></span><button class="del" title="Xóa" aria-label="Xóa ghi chú"><svg class="i line"><use href="#i-x"/></svg></button></div><div class="b"></div>`;
   const go = el.querySelector(".time"), del = el.querySelector(".del");
   go.textContent = stamp(noteAt(n));
-  el.querySelector(".w").textContent = `shot ${n.shot}${n.pin ? ` | ${n.pin.what}` : ""}`;
+  el.querySelector(".w").textContent = el.querySelector(".w").title = `shot ${n.shot}${n.pin ? ` | ${n.pin.what}` : ""}`;
   el.querySelector(".b").textContent = n.text;
   go.onclick = (e) => { e.stopPropagation(); if (playing) setPlaying(false); seek(noteAt(n)); };
   del.onclick = (e) => { e.stopPropagation(); removeNote(n); };
   // Anywhere else on a note edits it, in the same box a new note is written in
   el.onclick = () => editOldNote(n);
+  el.tabIndex = 0;
+  el.onkeydown = (e) => { if (e.key === "Enter" && e.target === el) { e.preventDefault(); e.stopPropagation(); editOldNote(n); } };
   if (n.fixes?.length) el.append(fixLine(n.fixes.at(-1)));
   return el;
 };
@@ -464,6 +469,7 @@ const historyCard = (n) => {
     const pic = document.createElement("img");
     pic.src = `/note-img/${n.id}.jpg`;
     pic.loading = "lazy";
+    pic.width = 960; pic.height = 540; // holds its place, or the list would jump as pictures arrive
     pic.alt = "";
     el.querySelector(".h").after(pic);
   }
@@ -587,11 +593,12 @@ const sized = (c) => {
   g.setTransform(d, 0, 0, d, 0, 0);
   return { g, w: r.width, h: r.height };
 };
-const SHADES = ["#1f2a2a", "#263434"];
+const SHADES = ["#1C1B1A", "#282726"];
+const UI_FONT = "system-ui,Segoe UI,Roboto,sans-serif";
 const drawWave = (g, a, b, w, y, h) => {
   const { peaks, step } = voice;
   if (!peaks.length) return;
-  g.fillStyle = "#6fa89a";
+  g.fillStyle = "#878580";
   for (let x = 0; x < w; x++) {
     const i0 = Math.floor(toSource(a + (x / w) * (b - a)) / step), i1 = Math.max(i0 + 1, Math.floor(toSource(a + ((x + 1) / w) * (b - a)) / step));
     let p = 0;
@@ -610,10 +617,10 @@ const drawOverview = () => {
     drawWave(b, 0, DURATION, w, 2, h - 4);
   }
   g.drawImage(overBg, 0, 0, w, h);
-  for (const n of notes) if (!n.done) { g.fillStyle = "#ffd23e"; g.fillRect((noteAt(n) / DURATION) * w - 1, 0, 3, h); }
+  for (const n of notes) if (!n.done) { g.fillStyle = "#3AA99F"; g.fillRect((noteAt(n) / DURATION) * w - 1, 0, 2, 7); }
   const a = viewCentre() - span / 2;
   g.fillStyle = "rgba(255,255,255,.1)"; g.fillRect((a / DURATION) * w, 0, (span / DURATION) * w, h);
-  g.fillStyle = "#ff6a3a"; g.fillRect((t / DURATION) * w - 1, 0, 2, h);
+  g.fillStyle = "#DA702C"; g.fillRect((t / DURATION) * w - 1, 0, 2, h);
 };
 let span = Number(sessionStorage.getItem("span")) || (PHONE ? 14 : 30), frozenCentre = null;
 const viewCentre = () => {
@@ -624,24 +631,24 @@ const drawDetail = () => {
   const { g, w, h } = sized($("detail"));
   const a = viewCentre() - span / 2, b = a + span;
   const X = (s) => ((s - a) / span) * w;
-  g.fillStyle = "#0e1111"; g.fillRect(0, 0, w, h);
+  g.fillStyle = "#100F0F"; g.fillRect(0, 0, w, h);
   // Shots
-  g.font = "12px Consolas"; g.textBaseline = "middle";
+  g.font = `12px ${UI_FONT}`; g.textBaseline = "middle";
   SHOTS.forEach((s, i) => {
     const e = shotEnd(i);
     if (e < a || s.t > b) return;
     const x0 = Math.max(0, X(s.t)), x1 = Math.min(w, X(e));
-    g.fillStyle = i === shotIndex(t) ? "#39504c" : SHADES[i % 2];
+    g.fillStyle = i === shotIndex(t) ? "#403E3C" : SHADES[i % 2];
     g.fillRect(x0, 0, x1 - x0 - 1, 20);
     g.save(); g.beginPath(); g.rect(x0, 0, x1 - x0 - 3, 20); g.clip();
-    g.fillStyle = "#cfd8d4"; g.fillText(`${i} ${comments[i] ?? ""}`, x0 + 4, 10);
+    g.fillStyle = "#CECDC3"; g.fillText(`${i} ${comments[i] ?? ""}`, x0 + 4, 10);
     g.restore();
-    g.fillStyle = "#3e4a48"; g.fillRect(X(s.t), 20, 1, h - 20);
+    g.fillStyle = "#343331"; g.fillRect(X(s.t), 20, 1, h - 20);
   });
   boxes = [];
   SHOTS.forEach((s, i) => { if (i && s.t >= a && s.t <= b) boxes.push({ type: "cut", i, x0: X(s.t) - 4, x1: X(s.t) + 4, y0: 0, y1: 20 }); });
   // Stuck stretches
-  g.fillStyle = "#e0453a";
+  g.fillStyle = "#D14D41";
   for (const [x, y] of stuck) if (y > a && x < b) g.fillRect(X(x), 18, X(y) - X(x), 3);
   // Voice: each sentence's pace behind the wave, the pauses between them can be dragged
   voiceOut.forEach((l, i) => {
@@ -649,15 +656,16 @@ const drawDetail = () => {
     if (n && n.s > a && l.e < b && X(n.s) - X(l.e) > 4) boxes.push({ type: "gap", i, x0: X(l.e), x1: X(n.s), y0: 22, y1: 66 });
     if (l.e < a || l.s > b) return;
     const pace = paceOf(i), on = selected?.type === "line" && selected.i === i;
-    g.fillStyle = on ? "#3b4a33" : pace > FAST_WPM ? "#4a2022" : pace && pace < SLOW_WPM ? "#1e2e4c" : "#161b1b";
+    g.fillStyle = on ? "#333D12" : pace > FAST_WPM ? "#3A1C19" : pace && pace < SLOW_WPM ? "#152A40" : "#1C1B1A";
     g.fillRect(X(l.s), 22, X(l.e) - X(l.s), 44);
     boxes.push({ type: "line", i, x0: X(l.s), x1: X(l.e), y0: 22, y1: 66 });
-    if (EDIT.voice.edits[i]) { g.fillStyle = "#ffd23e"; g.fillRect(X(l.s), 22, X(l.e) - X(l.s), 2); }
+    if (EDIT.voice.edits[i]) { g.fillStyle = "#3AA99F"; g.fillRect(X(l.s), 22, X(l.e) - X(l.s), 2); }
   });
   drawWave(g, a, b, w, 22, 44);
   // Actions and sounds, as blocks to drag onto a word
-  const lanes = { motion: [-1e9, -1e9, -1e9], sound: [-1e9, -1e9] }, BASE = { motion: 90, sound: 132 };
-  g.font = "11px Segoe UI,Arial";
+  const short = h < 160; // on a phone the notes need the room
+  const lanes = short ? { motion: [-1e9, -1e9], sound: [-1e9] } : { motion: [-1e9, -1e9, -1e9], sound: [-1e9, -1e9] }, BASE = { motion: 90, sound: short ? 118 : 132 };
+  g.font = `11px ${UI_FONT}`;
   for (const [id, m] of Object.entries(EDIT.beats).sort((p, q) => p[1].at - q[1].at)) {
     const o0 = fromSource(m.at), o1 = fromSource(m.at + m.dur);
     if (o1 < a || o0 > b) continue;
@@ -667,17 +675,17 @@ const drawDetail = () => {
     const label = HOLDS.has(id) ? x0 + 6 : x1;
     row[lane] = Math.max(x1, x0 + (m.title.length * 5.6 + 8));
     const y = BASE[m.kind] + lane * 14, on = selected?.type === "beat" && selected.id === id;
-    g.fillStyle = m.kind === "sound" ? "#6d4f8d" : HOLDS.has(id) ? "#37503f" : m.curve === "snap" ? "#b5642f" : "#3f6786";
+    g.fillStyle = m.kind === "sound" ? "#5E409D" : HOLDS.has(id) ? "#4A5A12" : m.curve === "snap" ? "#BC5215" : "#205EA6";
     g.fillRect(x0, y, x1 - x0, 13);
-    if (on) { g.strokeStyle = "#ffd23e"; g.lineWidth = 2; g.strokeRect(x0 + 1, y + 1, x1 - x0 - 2, 11); }
-    g.fillStyle = "#eef1ef"; g.fillText(m.title, x0 + 3, y + 7);
-    g.fillStyle = "#ffd23e";
+    if (on) { g.strokeStyle = "#3AA99F"; g.lineWidth = 2; g.strokeRect(x0 + 1, y + 1, x1 - x0 - 2, 11); }
+    g.fillStyle = "#E6E4D9"; g.fillText(m.title, x0 + 3, y + 7);
+    g.fillStyle = "#3AA99F";
     for (const [off] of m.sounds) if (m.kind === "motion") g.fillRect(X(fromSource(m.at + off)), y + 10, 2, 3);
     boxes.unshift({ type: "beat", id, x0, x1: Math.min(x1, label + 60), y0: y, y1: y + 13 });
   }
-  if (groupName) { g.fillStyle = "#d7a24a"; for (const c of group().cues) { const o = fromSource(c.at); if (o >= a && o <= b) g.fillRect(X(o), 160, 1, 4); } }
+  if (groupName) { g.fillStyle = "#D0A215"; for (const c of group().cues) { const o = fromSource(c.at); if (o >= a && o <= b) g.fillRect(X(o), h - 16, 1, 4); } }
   // Words, as many as fit
-  g.font = "12px Segoe UI,Arial"; g.fillStyle = "#e6e2c8";
+  g.font = `12px ${UI_FONT}`; g.fillStyle = "#CECDC3";
   let right = -1;
   for (const l of voiceOut) {
     if (l.e < a || l.s > b) continue;
@@ -686,19 +694,19 @@ const drawDetail = () => {
       if (x < -40 || x > w) continue;
       const wd = g.measureText(word.w).width;
       if (x <= right + 3) continue;
-      g.fillStyle = t >= word.s && t <= word.e ? "#ffd23e" : "#d9d5bd";
+      g.fillStyle = t >= word.s && t <= word.e ? "#3AA99F" : "#CECDC3";
       g.fillText(word.w, x, 77);
       right = x + wd;
     }
   }
-  if (!voice.lines.length) { g.fillStyle = "#68726f"; g.fillText("đang nghe giọng đọc để hiện lời thoại...", 8, 77); }
+  if (!voice.lines.length) { g.fillStyle = "#878580"; g.fillText("đang nghe giọng đọc để hiện lời thoại…", 8, 77); }
   // Seconds
-  g.fillStyle = "#68726f"; g.font = "10px Consolas";
+  g.fillStyle = "#878580"; g.font = "10px Consolas,monospace";
   const tick = [1, 2, 5, 10, 30, 60].find((n) => (n / span) * w >= 56) ?? 60; // room for its label, whatever the screen
   for (let s = Math.ceil(a / tick) * tick; s <= b; s += tick) { g.fillRect(X(s), h - 5, 1, 5); g.fillText(`${pad(Math.floor(s / 60))}:${pad(s % 60)}`, X(s) + 3, h - 7); }
   // Notes, playhead
-  for (const n of notes) if (n.t >= a && n.t <= b) { const x = X(n.t); g.fillStyle = n.done ? "#57656a" : "#ffd23e"; g.beginPath(); g.moveTo(x - 5, 21); g.lineTo(x + 5, 21); g.lineTo(x, 30); g.fill(); g.fillRect(x, 21, 1, h - 21); }
-  g.fillStyle = "#ff6a3a"; g.fillRect(X(t) - 1, 0, 2, h);
+  for (const n of notes) if (n.t >= a && n.t <= b) { const x = X(n.t); g.fillStyle = n.done ? "#575653" : "#3AA99F"; g.beginPath(); g.moveTo(x - 5, 21); g.lineTo(x + 5, 21); g.lineTo(x, 30); g.fill(); g.fillRect(x, 21, 1, h - 21); }
+  g.fillStyle = "#DA702C"; g.fillRect(X(t) - 1, 0, 2, h);
 };
 const drawTimelines = () => { drawOverview(); drawDetail(); };
 new ResizeObserver(() => { overBg = null; drawTimelines(); }).observe($("ctl"));
@@ -779,7 +787,7 @@ const setFinal = async (on) => {
   if (!on) { $("final").style.display = "none"; return; }
   if (playing) setPlaying(false);
   if (!finalRender) {
-    $("load").textContent = "đang dựng bản final (khoảng 10 giây, chỉ lần đầu)...";
+    $("load").textContent = "đang dựng bản final (khoảng 10 giây, chỉ lần đầu)…";
     finalRender = await buildScene($("final"), 1920, 1080, false);
     $("load").textContent = "";
   }
@@ -798,7 +806,7 @@ const optionOf = (name) => trials[name].options.find((o) => o.id === pickOf(name
 const silence = () => { for (const s of sounding) { try { s.stop(); } catch {} } sounding = []; anchor = null; };
 const playHit = (name, cue, when, speed) => {
   const o = optionOf(name), buf = o.buffers?.[cue.pick % o.buffers.length];
-  if (!buf) return;
+  if (!buf) { loadOption(o); return; }
   const src = ctx.createBufferSource(), g = ctx.createGain();
   src.buffer = buf;
   src.playbackRate.value = (o.plain ? 1 : cue.rate) * speed;
@@ -813,7 +821,8 @@ const soundFiles = {};
 const loadSounds = async () => {
   const names = new Set(Object.values(EDIT.beats).flatMap((b) => b.sounds.map((s) => s[1])));
   await Promise.all([...names].map(async (n) => {
-    const buf = await ctx.decodeAudioData(await (await getFile(`/agent/sfx2/${n}.wav`)).arrayBuffer());
+    const small = AWAY && await getFile(`/lite/agent/sfx2/${n}.webm`);
+    const buf = await ctx.decodeAudioData(await (small?.ok ? small : await getFile(`/agent/sfx2/${n}.wav`)).arrayBuffer());
     let peak = 1e-6;
     for (const v of buf.getChannelData(0)) if (Math.abs(v) > peak) peak = Math.abs(v);
     soundFiles[n] = { buf, scale: 0.9 / peak };
@@ -873,8 +882,11 @@ const chooseOption = (i) => {
   if (!o) return;
   ctx.resume();
   setPicked({ set: o.id });
-  if (!playing) playHit(groupName, group().cues[Math.floor(Math.random() * group().cues.length)], ctx.currentTime, 1); // paused: still say what it sounds like
+  const name = groupName;
+  loadOption(o).then(() => { if (!playing) playHit(name, trials[name].cues[Math.floor(Math.random() * trials[name].cues.length)], ctx.currentTime, 1); }); // paused: still say what it sounds like
 };
+// Only the sound in use comes down: the others wait until someone picks them
+const loadOption = (o) => (o.loading ??= Promise.all(o.files.map(async (f) => ctx.decodeAudioData(await (await getFile(f)).arrayBuffer()))).then((b) => { o.buffers = b; }));
 const loadTrials = async () => {
   const r = await getFile("/trials.json");
   if (!r.ok) return;
@@ -883,7 +895,7 @@ const loadTrials = async () => {
   $("trialGroup").replaceChildren(...Object.keys(trials).map((k) => { const o = document.createElement("option"); o.value = k; o.textContent = trials[k].title; return o; }));
   $("trialGroup").value = groupName;
   drawTrial();
-  for (const name in trials) for (const o of trials[name].options) o.buffers = await Promise.all(o.files.map(async (f) => ctx.decodeAudioData(await (await getFile(f)).arrayBuffer())));
+  await Promise.all(Object.keys(trials).map((name) => loadOption(optionOf(name))));
 };
 $("pNote").onclick = () => openNote(null);
 $("pBack5").onclick = () => seek(t - 5);
@@ -911,7 +923,7 @@ $("trialPick").onclick = async () => {
 
 // ---------- Main loop
 async function main() {
-  $("load").textContent = "đang dựng căn phòng...";
+  $("load").textContent = "đang dựng căn phòng…";
   fit();
   setEdit(await (await getFile("/edit.json")).json()); // fresher than the bundle: saving the edit doesn't rebuild it
   applyEdit();
@@ -927,7 +939,7 @@ async function main() {
     const tries = Number(sessionStorage.getItem("loadTries")) || 0;
     if (tries < 3) {
       sessionStorage.setItem("loadTries", tries + 1);
-      $("load").textContent = `mạng chập chờn, tải lại lần ${tries + 1}...`;
+      $("load").textContent = `mạng chập chờn, tải lại lần ${tries + 1}…`;
       // Only once the line is back: reloading into no network would leave the browser's own error page
       for (;;) { await new Promise((done) => setTimeout(done, 1500)); try { if ((await fetch("/edit.json")).ok) break; } catch {} }
       location.reload();
@@ -937,7 +949,7 @@ async function main() {
     throw new Error(`Không tải được ${failedFile || "căn phòng"}. Kiểm tra mạng rồi tải lại trang.`);
   }
   sessionStorage.removeItem("loadTries");
-  if (PHONE) loadPhoneMix();
+  if (AWAY) loadWholeMix();
   tools = render.tools;
   $("load").textContent = "";
   flash(`dựng xong trong ${((performance.now() - t0) / 1000).toFixed(1)}s`);
@@ -1020,6 +1032,7 @@ $("next").onclick = () => jump(1);
 $("freeB").onclick = () => setFree(!tools.free.on);
 $("camB").onclick = () => copyCam();
 $("finalB").onclick = () => setFinal(!finalOn);
+$("finalB").hidden = AWAY;
 const setLoop = (on) => { looping = on; window.__loopFrom = on ? t : undefined; $("loopB").classList.toggle("on", on); $("bLoop").style.display = on ? "block" : "none"; };
 $("loopB").onclick = () => setLoop(!looping);
 const toggleMute = () => { audio.muted = !audio.muted; $("muteB").classList.toggle("on", audio.muted); };
@@ -1040,7 +1053,7 @@ text.addEventListener("keydown", (e) => {
 });
 $("tabOpen").onclick = () => showTab("open");
 $("tabHist").onclick = () => showTab("history");
-$("moreB").onclick = () => { const open = $("more").classList.toggle("open"); $("moreB").classList.toggle("on", open); if (open && PHONE) scrollTo(0, 0); };
+$("moreB").onclick = () => { const open = $("more").classList.toggle("open"); $("moreB").classList.toggle("on", open); $("moreB").setAttribute("aria-expanded", open); };
 // A button keeps the keyboard's focus after a click, and Space would then press it on top of playing
 $("row").addEventListener("click", (e) => e.target.blur?.());
 addEventListener("keydown", (e) => {
@@ -1054,7 +1067,7 @@ addEventListener("keydown", (e) => {
   else if (k === "n" || k === "N" || k === "c") openNote(null);
   else if (k === "f" || k === "F") setFree(!tools.free.on);
   else if (k === "k" || k === "K") copyCam();
-  else if (k === "g" || k === "G") setFinal(!finalOn);
+  else if ((k === "g" || k === "G") && !AWAY) setFinal(!finalOn);
   else if (k === "l" || k === "L") setLoop(!looping);
   else if (k === "m" || k === "M") toggleMute();
   else if (k === "-") setFov(2);
@@ -1069,10 +1082,10 @@ const events = new EventSource("/events");
 // A code change waits for a note being spoken: reloading now would throw the words away
 events.addEventListener("code", () => { if (compose || playing) { reloadWaiting = true; flash("code đổi, sẽ tải lại khi dừng"); return; } sessionStorage.setItem("t", t); location.reload(); });
 events.addEventListener("error-build", (e) => showError(JSON.parse(e.data)));
-events.addEventListener("sound-start", () => { flash("đang trộn tiếng..."); });
+events.addEventListener("sound-start", () => { flash("đang trộn tiếng…"); });
 events.addEventListener("sound", () => { loadMix(); loadTrials(); flash("tiếng đã cập nhật"); });
 events.addEventListener("notes", loadNotes);
 events.addEventListener("voice", loadVoice);
 events.addEventListener("edit", async () => { const fresh = await (await fetch("/edit.json")).json(); if (JSON.stringify(fresh) !== snapshotEdit()) { setEdit(fresh); refreshTimes(); } });
-if (!PHONE) audio.src = MIX_URL; // on a phone line the room comes first, or the sound eats the bandwidth while the picture stays black
+if (!AWAY) audio.src = MIX_URL; // on a phone line the room comes first, or the sound eats the bandwidth while the picture stays black
 main();

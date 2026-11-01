@@ -8,7 +8,7 @@ The creator only watches, taps and talks. Nothing in the studio can edit the fil
 
 ## Run the demo
 
-Needs Node 20+ and Python 3 (for the small helper scripts). ffmpeg is needed for phone audio.
+Needs Node 20+ and Python 3 (for the small helper scripts). ffmpeg is needed for audio on anything but the machine running it.
 
 ```bash
 npm install

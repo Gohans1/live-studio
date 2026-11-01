@@ -1,145 +1,192 @@
-<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Studio</title><style>
-html,body{margin:0;height:100%;background:#0b0c0c;color:#d6dbd8;font:14px/1.4 Consolas,monospace;overflow:hidden}
-#wrap{display:grid;grid-template:1fr auto auto auto/1fr 340px;height:100%}
-#view{grid-column:1;grid-row:1;min-height:0;min-width:0;display:flex;align-items:center;justify-content:center;position:relative;background:#050606}
-#stage{position:relative;background:#000;box-shadow:0 0 0 1px #1e2221}
+<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#100F0F"><title>Studio</title><style>
+:root{color-scheme:dark;
+  /* Flexoki dark (stephango.com/flexoki): bg, bg-2, ui, ui-2, ui-3, tx, tx-2. The accent is cyan-400; tints are that cyan over bg-2 */
+  --bg:#100F0F;--surface:#100F0F;--raised:#1C1B1A;--raised-2:#282726;--raised-3:#343331;--line:#282726;
+  --text:#CECDC3;--text-2:#878580;
+  --accent:#3AA99F;--accent-hover:#4DBAB0;--on-accent:#100F0F;--tint:#1C2C2A;--tint-hover:#243B38;
+  --ok:#879A39;--warn:#D0A215;--warn-bg:#2A2410;--danger:#AF3029;--picture:#FFFCF0;
+  --ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--num:ui-monospace,Consolas,"Roboto Mono",monospace;
+  --gap:12px}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:14px/1.45 var(--ui);-webkit-text-size-adjust:100%}
+::selection{background:#3AA99F55}
+*{scrollbar-width:thin;scrollbar-color:var(--raised-2) transparent}
+.i{width:1.2em;height:1.2em;flex:none;fill:currentColor}
+.i.line{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+button,select{font:inherit;color:var(--text);background:var(--raised);border:1px solid transparent;border-radius:8px;padding:6px 12px;min-height:34px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+select{background-color:var(--raised);color:var(--text)}
+button.on{background:var(--tint);color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (hover:hover){button:hover,select:hover{background:var(--raised-3)}button.on:hover{background:var(--tint-hover)}}
+@media (prefers-reduced-motion:no-preference){button{transition:transform 150ms ease-out,background-color 150ms ease-out}button:not(:disabled):active{transform:scale(.96)}}
+
+/* Desktop: the film and its timeline on the left, the notes on the right */
+#wrap{display:grid;grid-template:minmax(0,1fr) auto auto auto/minmax(0,1fr) 360px;height:100%}
+#view{grid-column:1;grid-row:1;min-height:0;min-width:0;display:flex;align-items:center;justify-content:center;position:relative;background:#000}
+#stage{position:relative;background:#000}
 #stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-#gl{cursor:crosshair}#gl.free{cursor:grab}
+#gl{cursor:crosshair;touch-action:none}#gl.free{cursor:grab}
 #final{display:none;pointer-events:none}
-#clock{position:absolute;top:10px;right:10px;font:bold 26px Consolas,monospace;color:#fff;background:rgba(0,0,0,.68);padding:2px 10px;border-radius:3px;pointer-events:none;z-index:2}
-#badges{position:absolute;top:12px;left:10px;display:flex;gap:6px;pointer-events:none;z-index:2}
-#badges b{background:#c8512a;color:#fff;padding:2px 8px;border-radius:3px;font-weight:normal;display:none}
-#caption{position:absolute;left:0;right:0;bottom:12px;text-align:center;pointer-events:none;z-index:2}
-#caption span{background:rgba(0,0,0,.62);padding:3px 10px;border-radius:3px;color:#e8ece9}
+#clock{position:absolute;top:10px;right:10px;font:600 24px/1.25 var(--num);font-variant-numeric:tabular-nums;color:var(--picture);background:rgba(0,0,0,.6);padding:2px 10px;border-radius:6px;pointer-events:none;z-index:2}
+#badges{position:absolute;top:10px;left:10px;display:flex;gap:6px;pointer-events:none;z-index:2}
+#badges b{background:var(--danger);color:var(--picture);padding:2px 8px;border-radius:6px;font-weight:600;font-size:12px;display:none}
+#caption{position:absolute;left:0;right:0;bottom:12px;padding:0 12px;text-align:center;pointer-events:none;z-index:2}
+#caption span{background:rgba(0,0,0,.62);padding:3px 10px;border-radius:6px;color:var(--picture);-webkit-box-decoration-break:clone;box-decoration-break:clone}
 #pins{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
-.pin{position:absolute;width:18px;height:18px;margin:-11px 0 0 -11px;border:2px solid #ffd23e;border-radius:50%;box-shadow:0 0 0 1px #000}
-.pin.saved{border-color:#7fd4ff;width:12px;height:12px;margin:-8px 0 0 -8px}
-.pin i{position:absolute;left:24px;top:-3px;background:rgba(0,0,0,.8);color:#ffe68a;padding:1px 6px;font-style:normal;white-space:nowrap;border-radius:3px}
-#load{position:absolute;top:50px;left:12px;z-index:2}
-#err{display:none;position:absolute;inset:12px;overflow:auto;background:#3a0d0d;color:#ffd9d4;padding:12px;white-space:pre-wrap;z-index:5}
-#side{grid-row:1/5;grid-column:2;background:#131515;border-left:1px solid #262a2a;display:flex;flex-direction:column;min-height:0}
-#compose{padding:10px;background:#1b1f1f;border-bottom:1px solid #2c3131;display:none}
-#compose.open{display:block}
-#where{color:#ffe68a;margin-bottom:6px;word-break:break-word}
-#text{width:100%;box-sizing:border-box;height:112px;background:#0d0f0f;color:#fff;border:1px solid #ffd23e;border-radius:4px;padding:8px;font:15px/1.4 Segoe UI,Arial,sans-serif;resize:vertical}
-#compose small{color:#8d9895;display:block;margin-top:5px}
-#noteBtns{display:flex;gap:6px;margin-top:6px}
-#noteSave{flex:1;background:#ffd23e;border-color:#ffd23e;color:#111;font-weight:bold}#noteSave:hover{background:#ffe06e}
-#overwrite{display:none;background:#4a2a12;border:1px solid #c8782a;color:#ffd9a8;border-radius:4px;padding:5px 8px;margin-bottom:6px;font-family:Segoe UI,Arial,sans-serif}
-#sel{padding:8px 10px;border-bottom:1px solid #2c3131;font-family:Segoe UI,Arial,sans-serif}#sel>div:first-child{color:#ffe68a}
-#sel .btns{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}#sel button{padding:2px 7px;font-size:12px}
-#trial{padding:8px 10px;border-bottom:1px solid #2c3131;display:none}
-#trialHead{display:flex;align-items:center;gap:6px;color:#aab3b0;margin-bottom:6px}#trialHead span{flex:1}
-#trialOpts{display:flex;flex-direction:column;gap:3px}#trialOpts button{text-align:left;padding:3px 8px}
-#trialOpts button.chosen::after{content:" \2605";color:#ffd23e}
-#trialRow{display:flex;align-items:center;gap:6px;margin-top:6px}#trialGain{flex:1;min-width:0}
-#listhead{display:flex;align-items:center;gap:6px;padding:8px 10px;color:#aab3b0}
-.tab{background:none;border-color:transparent;color:#aab3b0;padding:5px 9px}.tab.on{background:#262a2a;border-color:#48524f;color:#fff;font-weight:bold}
-#saved{flex:1;text-align:right}
-.none{color:#8d9895;padding:10px 4px;font-family:Segoe UI,Arial,sans-serif}
-.note.old{cursor:default}.note img{display:block;width:100%;border-radius:3px;margin-top:6px}
-.fix{color:#7fd48a;font:13px/1.35 Segoe UI,Arial,sans-serif;margin-top:5px}
-.note .again{padding:2px 8px;font-size:12px}
-#saved{color:#7fd48a;font-size:12px}#saved.busy{color:#aab3b0}#saved.fail{color:#ffb35c;font-weight:bold}
-#list{flex:1;overflow:auto;padding:0 8px 8px}
-.note{background:#1a1d1d;border:1px solid #272c2b;border-radius:4px;padding:7px 8px;margin-bottom:6px;cursor:pointer}
-.note:hover{border-color:#48524f}.note.now{border-color:#7fd4ff}
-.note .h{display:flex;gap:8px;align-items:center}
-.note .w{flex:1;min-width:0;color:#8d9895;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.note .time{background:#16323f;border-color:#2c6a85;color:#9fe0ff;font:bold 15px Consolas,monospace;padding:3px 8px}.note .time:hover{background:#1e4557}
-.note .b{white-space:pre-wrap;font-family:Segoe UI,Arial,sans-serif;margin-top:3px;color:#eef1ef}
-.note .del{padding:0 8px;line-height:22px;background:none;border-color:transparent;color:#8d9895;font-size:16px}
-.note.editing{border-color:#ffd23e}
-#ctl{grid-column:1;grid-row:4;background:#141616;border-top:1px solid #262a2a;padding:6px 10px 8px;min-width:0}
-#over,#detail{display:block;width:100%;cursor:ew-resize;border-radius:3px;touch-action:none}#gl{touch-action:none}
-#phone{display:none}
-#over{height:22px;margin-bottom:4px}#detail{height:176px}
-#row{grid-column:1;grid-row:2;display:flex;gap:10px;align-items:center;padding:8px 10px;background:#141616;border-top:1px solid #262a2a;min-width:0}
-#play,#pNote,#moreB{height:50px;font:bold 18px Segoe UI,Arial,sans-serif;border-radius:6px}
-#play{min-width:140px;background:#e8ece9;border-color:#e8ece9;color:#111}#play:hover{background:#fff}
-#pNote{min-width:240px;background:#ffd23e;border-color:#ffd23e;color:#111;box-shadow:0 0 14px rgba(255,210,62,.35)}#pNote:hover{background:#ffe06e}
-#moreB{min-width:50px;margin-left:auto;background:none;color:#8d9895}
-#mix{flex:1;min-width:0;color:#8d9895;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#more{grid-column:1;grid-row:3;display:none;background:#141616;border-top:1px solid #262a2a;padding:6px 10px;max-height:40vh;overflow:auto}#more.open{display:block}
+.pin{position:absolute;width:18px;height:18px;margin:-11px 0 0 -11px;border:2px solid var(--accent);border-radius:50%;box-shadow:0 0 0 1px #000}
+.pin.saved{border-color:#4385BE;width:12px;height:12px;margin:-8px 0 0 -8px}
+.pin i{position:absolute;left:24px;top:-3px;background:rgba(0,0,0,.8);color:var(--text);padding:1px 6px;font-style:normal;white-space:nowrap;border-radius:4px}
+#load{position:absolute;top:50px;left:12px;z-index:2;background:rgba(0,0,0,.6);padding:2px 8px;border-radius:6px}#load:empty{display:none}
+#err{display:none;position:absolute;inset:12px;overflow:auto;background:#2E1513;color:var(--text);padding:12px;border-radius:8px;white-space:pre-wrap;z-index:5}
+
+/* The two buttons that matter */
+#row{grid-column:1;grid-row:2;position:relative;display:flex;gap:8px;align-items:center;padding:10px var(--gap);background:var(--surface);min-width:0}
+#play,#pNote,#moreB{height:48px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:600;border-radius:10px}
+#play{min-width:128px;background:var(--raised-3)}
+#pNote{min-width:220px;background:var(--accent);color:var(--on-accent)}
+@media (hover:hover){#play:hover{background:#403E3C}#pNote:hover{background:var(--accent-hover)}}
+#moreB{width:48px;padding:0;margin-left:auto;background:none;color:var(--text-2);order:9}
+#mix{flex:1;min-width:0;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#mix:empty{display:none}
+
+/* Everything else, folded away */
+#more{grid-column:1;grid-row:3;display:none;background:var(--surface);padding:0 var(--gap) 10px;max-height:40vh;overflow:auto;overscroll-behavior:contain}#more.open{display:block}
 #moreRow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-#undo{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:9;display:none;gap:12px;align-items:center;background:#2a2f2f;border:1px solid #48524f;border-radius:6px;padding:8px 12px;color:#fff;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.6)}#undo.open{display:flex}
-#undoB{background:#ffd23e;border-color:#ffd23e;color:#111;font-weight:bold;min-height:38px}
-button,select{background:#262a2a;color:#e6eae8;border:1px solid #3c4342;border-radius:4px;padding:4px 9px;font:inherit;cursor:pointer}
-button:hover{background:#333838}button.on{background:#c8512a;border-color:#e0714c}
-#shot{flex:1;min-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#perf,#built,#keys{color:#8d9895}#keys{font-size:12px;margin-top:4px}
-/* Phone: picture stays on top, one column to scroll below it, no keyboard so every key has a button, targets big enough for a thumb */
-@media (max-width:820px),(max-height:520px){
-  /* Only the page itself scrolls: with body scrolling too, the picture below can't stick */
-  html{overflow:auto;height:auto;-webkit-text-size-adjust:100%}
-  body{overflow:visible;height:auto}
-  :root{--pic:min(56.25vw,62vh)}
-  #wrap{display:flex;flex-direction:column;height:auto}#row{order:1}#more{order:2}#ctl{order:3}#side{order:4}
-  #view{position:sticky;top:0;z-index:4;width:100%;aspect-ratio:16/9;max-height:62vh}
-  #clock{font-size:17px;top:4px;right:4px;padding:1px 6px}
-  #badges{top:4px;left:4px}#badges b{font-size:11px}
-  #caption{bottom:4px;font-size:12px}
-  #ctl{padding:6px 8px}
-  #over{height:34px}
-  /* The two buttons that matter stay under the picture however far the notes scroll */
-  #row{position:sticky;top:var(--pic);z-index:4;padding:6px 8px;gap:8px}
-  #play{flex:0 0 34%;min-width:0;height:52px}#pNote{flex:1;min-width:0;height:52px}#moreB{flex:0 0 46px;min-width:0;height:52px;margin:0}
-  #mix{position:absolute;right:8px;top:-24px;flex:none;max-width:70%;background:rgba(0,0,0,.72);color:#e8ece9;padding:1px 6px;border-radius:3px;font-size:12px}#mix:empty{display:none}
-  #more{max-height:none}
-  #moreRow button,#moreRow select,#phone button{min-height:40px;padding:4px 10px}
-  #phone{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-  #freeB,#camB,#finalB,#keys,#perf{display:none}
-  #shot{flex-basis:100%;order:9}
-  #side{border-left:0;border-top:1px solid #262a2a;display:block}
-  #list{overflow:visible}
+#phone{display:none}
+#shot{flex:1;min-width:160px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#perf,#keys{color:var(--text-2);font-size:12px}#perf{font-variant-numeric:tabular-nums}#keys{margin-top:8px}
+#sel{margin-top:8px}#sel:empty{display:none}#sel>div:first-child{color:var(--text)}
+#sel .btns{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+#trial{margin-top:8px;display:none}
+#trialHead{display:flex;align-items:center;gap:6px;color:var(--text-2);margin-bottom:6px}#trialHead span{flex:1}
+#trialOpts{display:flex;flex-direction:column;gap:4px}#trialOpts button{text-align:start}
+#trialOpts button.chosen::after{content:" \2605";color:var(--accent)}
+#trialRow{display:flex;align-items:center;gap:6px;margin-top:6px}#trialGain{flex:1;min-width:0;accent-color:var(--accent)}
+
+/* Timeline */
+#ctl{grid-column:1;grid-row:4;background:var(--surface);padding:0 var(--gap) var(--gap);min-width:0}
+#over,#detail{display:block;width:100%;cursor:ew-resize;border-radius:6px;touch-action:none}
+#over{height:24px;margin-bottom:6px}#detail{height:176px}
+
+/* Notes */
+#side{grid-row:1/5;grid-column:2;background:var(--surface);border-inline-start:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#compose{padding:var(--gap);background:var(--raised);display:none}#compose.open{display:block}
+#where{font-size:13px;color:var(--accent);margin-bottom:8px;overflow-wrap:anywhere}
+#overwrite{display:none;align-items:center;gap:8px;background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:6px 10px;margin-bottom:8px;font-size:13px}
+#text{display:block;width:100%;height:112px;background:var(--bg);color:var(--text);caret-color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:8px 10px;font:15px/1.45 var(--ui);resize:vertical}
+#text:focus-visible{outline:none;box-shadow:0 0 0 1px var(--accent)}
+#text::placeholder{color:var(--text-2)}
+#noteBtns{display:flex;gap:8px;margin-top:8px}
+#noteBtns button{min-height:44px;font-weight:600}
+#noteSave{flex:1;background:var(--accent);color:var(--on-accent)}
+#noteCancel{padding-inline:20px;background:var(--raised-2)}
+@media (hover:hover){#noteSave:hover{background:var(--accent-hover)}#noteCancel:hover{background:var(--raised-3)}}
+#compose small{color:var(--text-2);display:block;margin-top:8px;font-size:12px}
+#listhead{display:flex;align-items:center;gap:4px;padding:10px var(--gap) 8px;flex:none}
+.tab{background:none;color:var(--text-2);padding:5px 10px;font-weight:500;white-space:nowrap}
+.tab.on{background:var(--raised-2);color:var(--text);font-weight:600}
+#saved{flex:1;min-width:0;text-align:end;color:var(--ok);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#saved.busy{color:var(--text-2)}#saved.fail{color:var(--warn);font-weight:600;white-space:normal}
+#list{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 var(--gap) var(--gap);display:flex;flex-direction:column;gap:6px}
+.none{color:var(--text-2);padding:8px 2px}
+.note{flex:none;background:var(--raised);border:1px solid transparent;border-radius:10px;padding:6px 10px 10px;cursor:pointer}
+@media (hover:hover){.note:hover{background:var(--raised-2)}}
+.note.now{border-color:var(--accent);background:#192220}.note.now .w,.note.now .del{color:#B7B5AC}
+.note.editing{border-color:var(--warn)}
+.note.old{cursor:default}
+.note .h{display:flex;gap:8px;align-items:center;min-height:36px}
+.note .w{flex:1;min-width:0;color:var(--text-2);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note .time{background:var(--tint);color:var(--accent);font:600 14px var(--num);font-variant-numeric:tabular-nums;padding:4px 8px;min-height:30px}
+@media (hover:hover){.note .time:hover{background:var(--tint-hover)}}
+.note .b{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;font-size:14px}
+.note .del{display:flex;align-items:center;justify-content:center;width:32px;min-height:32px;padding:0;margin-inline-end:-6px;background:none;color:var(--text-2)}
+.note .again{padding:4px 10px;min-height:30px;font-size:13px}
+.note img{display:block;width:100%;height:auto;border-radius:6px;margin:6px 0 4px;outline:1px solid rgba(255,255,255,.1);outline-offset:-1px}
+.fix{color:var(--ok);font-size:13px;margin-top:6px}
+#undo{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9;display:none;gap:12px;align-items:center;background:var(--raised-3);border-radius:10px;padding:8px 8px 8px 14px;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.6)}#undo.open{display:flex}
+#undoB{background:var(--accent);color:var(--on-accent);font-weight:600;min-height:40px}
+
+/* Touch: a thumb needs room, and there's no keyboard so every key has a button */
+@media (pointer:coarse){
+  button,select{min-height:44px}
   #text{font-size:16px} /* below 16px, phones zoom the whole page on focus */
-  #noteBtns button{min-height:44px;font-size:15px;padding:4px 16px}
-  #compose small{display:none}
-  .note .b{font-size:16px}
-  .tab{min-height:42px;font-size:14px}
-  .note .again{min-height:42px;font-size:14px;padding:4px 10px}
-  .note .time{font-size:17px;min-height:42px;padding:4px 12px}
-  .note .del{min-width:42px;min-height:42px;font-size:20px}
-  /* Right under the picture, so opening a note never scrolls the page and a tap still lands on the picture */
-  #compose{position:fixed;top:var(--pic);left:0;right:0;z-index:5;box-shadow:0 6px 14px rgba(0,0,0,.6)}
-  #text{height:76px}
-  #sel button,#trialOpts button,#trialRow button,#copyAll{min-height:38px;font-size:14px}
-  #trialGain{height:30px}
+  #compose small,#keys,#perf,#freeB,#camB,#finalB{display:none}
+  #phone{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px}
+  #phone button{padding:6px 4px;white-space:nowrap}
+  #pIn,#pOut{grid-column:span 2}
+  #moreRow>button,#moreRow>select{flex:1 1 auto}
+  #shot{flex-basis:100%;order:9}
+  #over{height:28px}
+  .tab{min-height:40px;padding-inline:12px}
+  .note .h{min-height:44px}
+  .note .time{min-height:38px;padding-inline:10px;font-size:15px}
+  .note .del{width:44px;min-height:44px;margin-inline-end:-10px}
+  .note .again{min-height:40px}
+  .note .b{font-size:15px}
 }
-/* Phone held upright: the page stands still and only the notes scroll, so the list can follow the film */
-@media (max-width:820px) and (min-height:521px){
-  html,body{overflow:hidden;height:100%}
-  #wrap{height:100dvh}
-  #view,#row,#ctl{flex:none}
-  #more{flex:none;max-height:34dvh;overflow:auto}
-  #side{flex:1;min-height:0;display:flex;flex-direction:column}
-  #listhead{flex:none}
-  #list{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+
+/* Phone held upright: nothing moves but the notes, which follow the film */
+@media (max-width:820px) and (min-height:521px),(max-width:559px){
+  :root{--pic:min(56.25vw,62vh)}
+  #wrap{display:flex;flex-direction:column;height:100dvh}
+  #view{flex:none;width:100%;aspect-ratio:16/9;max-height:62vh}
+  #row,#more,#ctl{flex:none}
+  #clock{font-size:16px;top:6px;right:6px;padding:1px 6px}
+  #badges{top:6px;left:6px}#badges b{font-size:11px}
+  #caption{bottom:6px;font-size:13px}
+  #row{padding:8px var(--gap)}
+  #play{flex:0 0 32%;min-width:0}#pNote{flex:1;min-width:0}#moreB{flex:0 0 44px;width:44px;margin:0}
+  #mix{position:absolute;right:var(--gap);top:-26px;flex:none;max-width:70%;background:rgba(0,0,0,.72);color:var(--text);padding:1px 8px;border-radius:6px;font-size:12px}
+  #more{max-height:32dvh}
+  #detail{height:148px}
+  #side{flex:1;min-height:0;border-inline-start:0}
+  #listhead{padding:6px var(--gap)}
+  /* Right under the picture, so the keyboard can't cover it and a tap still lands on the picture */
+  #compose{position:fixed;top:var(--pic);left:0;right:0;z-index:5;box-shadow:0 8px 20px rgba(0,0,0,.6)}
+  #text{height:76px}
+}
+/* Phone on its side: the picture gets the height, the notes sit beside it */
+@media (max-height:520px) and (min-width:560px){
+  #wrap{grid-template-columns:minmax(0,1fr) min(36%,320px);height:100dvh}
+  #row{padding:6px var(--gap)}
+  #play,#pNote,#moreB{height:44px}
+  #play{flex:0 0 30%;min-width:0}#pNote{flex:1;min-width:0}#moreB{flex:0 0 44px;width:44px;margin:0}
+  #mix{position:absolute;right:var(--gap);top:-26px;flex:none;max-width:70%;background:rgba(0,0,0,.72);color:var(--text);padding:1px 8px;border-radius:6px;font-size:12px}
+  #more{max-height:50dvh}
+  #ctl{padding-bottom:6px}#over{margin:0}#detail{display:none}
+  #clock{font-size:16px;top:6px;right:6px;padding:1px 6px}
+  #caption{bottom:6px;font-size:13px}
+  #compose{padding:8px var(--gap)}
+  #where{margin-bottom:4px}
+  #text{height:64px;padding:6px 8px}
+  #noteBtns{margin-top:6px}
+  #listhead{padding:4px var(--gap)}
+  .tab{min-height:36px}
 }
 </style>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.1v13.8a.6.6 0 0 0 .9.5l10.7-6.9a.6.6 0 0 0 0-1L8.9 4.6a.6.6 0 0 0-.9.5z"/></symbol><symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4.5" height="14" rx="1"/><rect x="13.5" y="5" width="4.5" height="14" rx="1"/></symbol><symbol id="i-note" viewBox="0 0 24 24"><path d="M16.9 3.6a2 2 0 0 1 2.8 0l.7.7a2 2 0 0 1 0 2.8L8.6 18.9a2 2 0 0 1-.9.5l-3.9 1a.6.6 0 0 1-.7-.7l1-3.9a2 2 0 0 1 .5-.9z"/></symbol><symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></symbol><symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol><symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4l9 16H3zM12 10v4M12 17.2v.1"/></symbol></svg>
 <div id="wrap">
   <div id="view"><div id="stage"><canvas id="gl" width="960" height="540"></canvas><canvas id="final" width="1920" height="1080"></canvas>
     <div id="pins"></div><div id="clock">00:00.000</div><div id="badges"><b id="bFree">CAMERA TỰ DO</b><b id="bFinal">CHẤT LƯỢNG FINAL</b><b id="bLoop">LẶP SHOT</b></div><div id="caption"></div><div id="load"></div></div><pre id="err"></pre></div>
-  <div id="row"><button id="play">▶ Phát</button><button id="pNote">✎ Ghi chú</button><span id="mix"></span><button id="moreB" title="Các nút khác">&#8943;</button></div>
+  <div id="row"><button id="play"><svg class="i"><use id="playIcon" href="#i-play"/></svg><span id="playText">Phát</span></button><button id="pNote"><svg class="i"><use href="#i-note"/></svg>Ghi chú</button><span id="mix" role="status"></span><button id="moreB" title="Các nút khác" aria-label="Các nút khác" aria-expanded="false"><svg class="i"><use href="#i-more"/></svg></button></div>
   <div id="more">
-    <div id="moreRow"><button id="prev" title="[">&#9664; shot</button><button id="next" title="]">shot &#9654;</button>
-      <select id="rate" title="Tốc độ"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="1.5">1.5x</option><option value="2">2x</option></select>
-      <button id="loopB" title="L">Lặp shot</button><button id="freeB" title="F">Camera tự do</button><button id="camB" title="K">Chép góc máy</button><button id="finalB" title="G">Xem final</button><button id="muteB" title="M">Tắt tiếng</button><button id="copyAll" title="Chép mọi ghi chú chưa xong">Chép hết ghi chú</button>
+    <div id="phone"><button id="pBack5">-5s</button><button id="pBack">-1 hình</button><button id="pFwd">+1 hình</button><button id="pFwd5">+5s</button><button id="pOut">Timeline −</button><button id="pIn">Timeline +</button></div>
+    <div id="moreRow"><button id="prev" title="[">‹ Shot</button><button id="next" title="]">Shot ›</button>
+      <select id="rate" title="Tốc độ" aria-label="Tốc độ"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="1.5">1.5x</option><option value="2">2x</option></select>
+      <button id="loopB" title="L">Lặp shot</button><button id="muteB" title="M">Tắt tiếng</button><button id="freeB" title="F">Camera tự do</button><button id="camB" title="K">Chép góc máy</button><button id="finalB" title="G">Xem final</button><button id="copyAll" title="Chép mọi ghi chú chưa xong">Chép hết ghi chú</button>
       <span id="shot"></span><span id="perf"></span></div>
-    <div id="phone"><button id="pBack5">-5s</button><button id="pBack">-1 hình</button><button id="pFwd">+1 hình</button><button id="pFwd5">+5s</button><button id="pIn">Timeline +</button><button id="pOut">Timeline -</button></div>
     <div id="keys">Bấm vào hình: ghim + nói | N ghi chú | Space phát | &larr; &rarr; 1 hình | Shift+&larr; &rarr; 5s | [ ] shot | lăn chuột trên timeline: phóng to | F camera tự do: kéo lia, lăn tiến lùi, chuột phải dời, Shift+kéo xoay quanh, WASD QE đi, - = ống kính | K chép góc máy | G xem final | L lặp shot | M tắt tiếng | 0-9 đổi tiếng đang thử</div>
     <div id="sel"></div>
-    <div id="trial"><div id="trialHead"><span>Thử tiếng (phím 0-9)</span><select id="trialGroup"></select></div><div id="trialOpts"></div>
-      <div id="trialRow"><input id="trialGain" type="range" min="0" max="2" step="0.05" value="1" title="To nhỏ"><span id="trialGainText">100%</span><button id="trialGo" title="Nhảy tới chỗ có tiếng này và phát">Nghe</button><button id="trialPick" title="Dùng tiếng này cho phim">Chốt</button></div></div>
+    <div id="trial"><div id="trialHead"><span>Thử tiếng (phím 0-9)</span><select id="trialGroup" aria-label="Nhóm tiếng"></select></div><div id="trialOpts"></div>
+      <div id="trialRow"><input id="trialGain" type="range" min="0" max="2" step="0.05" value="1" title="To nhỏ" aria-label="To nhỏ"><span id="trialGainText">100%</span><button id="trialGo" title="Nhảy tới chỗ có tiếng này và phát">Nghe</button><button id="trialPick" title="Dùng tiếng này cho phim">Chốt</button></div></div>
   </div>
-  <aside id="side">
-    <div id="compose"><div id="where"></div><div id="overwrite">⚠ Đang sửa ghi chú cũ: bấm Xong là chữ mới ghi đè chữ cũ</div><textarea id="text" placeholder="Gõ hoặc nói..."></textarea><div id="noteBtns"><button id="noteSave">Xong</button><button id="noteCancel">Hủy</button></div><small>Tự giữ từng chữ, tải lại trang không mất | Enter xong rồi xem tiếp | Shift+Enter xuống dòng | Esc hủy</small></div>
-    <div id="listhead"><button id="tabOpen" class="tab"></button><button id="tabHist" class="tab"></button><span id="saved"></span></div>
-    <div id="list"></div>
-  </aside>
   <div id="ctl">
     <canvas id="over"></canvas><canvas id="detail"></canvas>
   </div>
+  <aside id="side">
+    <div id="compose"><div id="where"></div><div id="overwrite"><svg class="i line"><use href="#i-warn"/></svg><span>Đang sửa ghi chú cũ: bấm Xong là chữ mới ghi đè chữ cũ</span></div><textarea id="text" name="note" placeholder="Gõ hoặc nói…" aria-label="Nội dung ghi chú" enterkeyhint="done" autocomplete="off"></textarea><div id="noteBtns"><button id="noteSave">Xong</button><button id="noteCancel">Hủy</button></div><small>Tự giữ từng chữ, tải lại trang không mất | Enter xong rồi xem tiếp | Shift+Enter xuống dòng | Esc hủy</small></div>
+    <div id="listhead"><button id="tabOpen" class="tab"></button><button id="tabHist" class="tab"></button><span id="saved" role="status"></span></div>
+    <div id="list"></div>
+  </aside>
 </div>
-<div id="undo"><span id="undoText"></span><button id="undoB">Hoàn tác</button></div>
+<div id="undo" role="status"><span id="undoText"></span><button id="undoB">Hoàn tác</button></div>
 <audio id="audio" preload="auto"></audio><script type="module" src="/live_page.js"></script>

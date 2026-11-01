@@ -3,7 +3,8 @@
 import { execFileSync, spawn } from "node:child_process";
 import { appendFileSync, copyFileSync, createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, watch, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { gzipSync } from "node:zlib";
+import { brotliCompressSync, constants as zlibConsts, gzipSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { networkInterfaces } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,25 +17,42 @@ const PYTHON = existsSync(VENV_PYTHON) ? VENV_PYTHON : process.platform === "win
 const PUBLIC = join(PROJECT, "assets/public");
 const WORK = join(PROJECT, "renders/live");
 const MIX = join(WORK, "mix_dry.wav"); // without the sounds being tried: the page plays those itself
-const MIX_PHONE = join(WORK, "mix_phone.mp3"); // the same mix, a twelfth of the size
+const MIX_SMALL = join(WORK, "mix_small.webm"); // the same mix for anything but this machine: a fifteenth of the size, and Opus stays on the clock where mp3 ran up to 30ms off
 const LITE = join(WORK, "lite"); // small copies of the assets, see make_lite.py
 const TRIALS = join(WORK, "trials.json");
 const EDIT = join(here, "edit.json");
 const CHOICES = join(PROJECT, "sound_choices.json");
 const PORT = Number(process.argv[2]) || 4321;
 mkdirSync(WORK, { recursive: true });
-const MIME = { ".gltf": "application/json", ".glb": "model/gltf-binary", ".jpg": "image/jpeg", ".png": "image/png", ".bin": "application/octet-stream", ".js": "text/javascript", ".wav": "audio/wav", ".mp3": "audio/mpeg" };
-// Text shrinks to a quarter, which is most of the wait for the page itself on a phone line
-const sendText = (req, res, buf) => {
-  if (/gzip/.test(req.headers["accept-encoding"] ?? "")) { res.setHeader("content-encoding", "gzip"); buf = gzipSync(buf); }
-  res.end(buf);
+const MIME = { ".gltf": "application/json", ".glb": "model/gltf-binary", ".jpg": "image/jpeg", ".png": "image/png", ".bin": "application/octet-stream", ".js": "text/javascript", ".wav": "audio/wav", ".webm": "audio/webm" };
+// Text and geometry shrink a lot and pictures don't. Squeezed once per version, so the next visit costs nothing here either
+const packed = new Map();
+const squeeze = (req, res, buf, tag) => {
+  const accepts = req.headers["accept-encoding"] ?? "", how = /\bbr\b/.test(accepts) ? "br" : /gzip/.test(accepts) ? "gzip" : "";
+  res.setHeader("vary", "accept-encoding");
+  if (!how) return buf;
+  const key = how + tag;
+  if (!packed.has(key)) {
+    if (packed.size > 400) packed.clear();
+    packed.set(key, how === "br" ? brotliCompressSync(buf, { params: { [zlibConsts.BROTLI_PARAM_QUALITY]: 9 } }) : gzipSync(buf));
+  }
+  res.setHeader("content-encoding", how);
+  return packed.get(key);
 };
-let phoneMixing = null;
-const phoneMix = () => {
-  if (existsSync(MIX_PHONE) && statSync(MIX_PHONE).mtimeMs >= statSync(MIX).mtimeMs) return Promise.resolve();
+// Unchanged means no download, and asking costs a few bytes
+const sendText = (req, res, buf) => {
+  const tag = `"${createHash("md5").update(buf).digest("base64url")}"`;
+  res.setHeader("etag", tag);
+  res.setHeader("cache-control", "no-cache");
+  if (req.headers["if-none-match"] === tag) { res.statusCode = 304; res.end(); return; }
+  res.end(squeeze(req, res, buf, tag));
+};
+let smallMixing = null;
+const smallMix = () => {
+  if (existsSync(MIX_SMALL) && statSync(MIX_SMALL).mtimeMs >= statSync(MIX).mtimeMs) return Promise.resolve();
   // Made beside it and swapped in whole: a phone may be halfway through downloading the old one
-  const fresh = MIX_PHONE + ".new.mp3";
-  return (phoneMixing ??= new Promise((done) => spawn("ffmpeg", ["-v", "error", "-y", "-i", MIX, "-ac", "1", "-c:a", "libmp3lame", "-b:a", "64k", fresh], { stdio: "inherit" }).on("close", async () => { await swapIn(fresh, MIX_PHONE); phoneMixing = null; done(); })));
+  const fresh = MIX_SMALL + ".new.webm";
+  return (smallMixing ??= new Promise((done) => spawn("ffmpeg", ["-v", "error", "-y", "-i", MIX, "-ac", "1", "-c:a", "libopus", "-b:a", "48k", fresh], { stdio: "inherit" }).on("error", (e) => console.log("ffmpeg is needed for the small mix:", e.message)).on("close", async (code) => { if (!code) await swapIn(fresh, MIX_SMALL); smallMixing = null; done(); })));
 };
 
 let bundle = "";
@@ -55,7 +73,7 @@ const BACKUPS = join(PROJECT, "renders/notes_backup"); // renders is on E:
 mkdirSync(BACKUPS, { recursive: true });
 let backedUp = 0;
 const backupNotes = () => {
-  if (Date.now() - backedUp < 5 * 60e3 || !statSync(NOTES).size) return;
+  if (Date.now() - backedUp < 5 * 60e3 || !existsSync(NOTES) || !statSync(NOTES).size) return; // gone is no reason to refuse the next note
   backedUp = Date.now();
   copyFileSync(NOTES, join(BACKUPS, `notes-${new Date().toISOString().replace(/[:.]/g, "-")}.jsonl`));
 };
@@ -109,13 +127,13 @@ const swapIn = async (fresh, target) => {
 const server = createServer(async (req, res) => {
   const url = decodeURIComponent(req.url.split("?")[0]);
   if (url === "/favicon.ico") { res.statusCode = 204; res.end(); return; }
-  if (url === "/") { res.setHeader("content-type", "text/html; charset=utf-8"); res.setHeader("cache-control", "no-store"); res.end(readFileSync(join(here, "studio.html"))); return; }
+  if (url === "/") { res.setHeader("content-type", "text/html; charset=utf-8"); sendText(req, res, readFileSync(join(here, "studio.html"))); return; }
   if (url === "/notes.json") { res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store"); res.end(JSON.stringify(readNotes())); return; }
   if (url === "/voice_map.json") {
     if (!existsSync(VOICE_MAP)) { res.statusCode = 404; res.end(); return; }
     res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store"); sendText(req, res, readFileSync(VOICE_MAP)); return;
   }
-  if (url === "/edit.json") { res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store"); res.end(readFileSync(EDIT)); return; }
+  if (url === "/edit.json") { res.setHeader("content-type", "application/json"); sendText(req, res, readFileSync(EDIT)); return; }
   // The studio only looks and takes notes; a page still open from before can't write its old copy back
   if (req.method === "POST" && url === "/edit") { res.statusCode = 403; res.end(); return; }
   if (url === "/trials.json") {
@@ -123,7 +141,7 @@ const server = createServer(async (req, res) => {
     const trials = JSON.parse(readFileSync(TRIALS, "utf8"));
     const chosen = readChoices();
     for (const g in trials) trials[g].chosen = chosen[g] ?? null;
-    res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store"); res.end(JSON.stringify(trials)); return;
+    res.setHeader("content-type", "application/json"); sendText(req, res, Buffer.from(JSON.stringify(trials))); return;
   }
   if (req.method === "POST" && url === "/choose") {
     const { group, set, gain } = await readBody(req);
@@ -180,9 +198,9 @@ const server = createServer(async (req, res) => {
     return;
   }
   if (url === "/events") { res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store" }); res.write("\n"); clients.add(res); req.on("close", () => clients.delete(res)); return; }
-  if (url === "/shots.json") { res.setHeader("content-type", "application/json"); res.end(JSON.stringify(shotComments())); return; }
+  if (url === "/shots.json") { res.setHeader("content-type", "application/json"); sendText(req, res, Buffer.from(JSON.stringify(shotComments()))); return; }
   // Held whole in memory: a page loading while a save rebuilds must never get half a file
-  if (url === "/live_page.js") { res.setHeader("content-type", "text/javascript"); res.setHeader("cache-control", "no-store"); sendText(req, res, bundle); return; }
+  if (url === "/live_page.js") { res.setHeader("content-type", "text/javascript"); sendText(req, res, bundle); return; }
   const notePic = /^\/note-img\/([a-z0-9]+)\.jpg$/.exec(url);
   if (notePic) {
     const pic = join(NOTE_IMG, `${notePic[1]}.jpg`);
@@ -192,9 +210,9 @@ const server = createServer(async (req, res) => {
     res.end(readFileSync(pic));
     return;
   }
-  if (url === "/mix_phone.mp3") await phoneMix();
+  if (url === "/mix_small.webm") await smallMix();
   const lite = url.startsWith("/lite/");
-  const file = url === "/mix.wav" ? MIX : url === "/mix_phone.mp3" ? MIX_PHONE : lite ? join(LITE, url.slice(5)) : join(PUBLIC, url);
+  const file = url === "/mix.wav" ? MIX : url === "/mix_small.webm" ? MIX_SMALL : lite ? join(LITE, url.slice(5)) : join(PUBLIC, url);
   if (!existsSync(file)) { res.statusCode = 404; res.end(); return; }
   const { size, mtimeMs } = statSync(file);
   res.setHeader("content-type", MIME[extname(file)] ?? "application/octet-stream");
@@ -204,8 +222,9 @@ const server = createServer(async (req, res) => {
     // A reload on a phone must not fetch the room again
     const tag = `"${size}-${Math.round(mtimeMs)}"`;
     res.setHeader("etag", tag);
-    res.setHeader("cache-control", lite ? "max-age=86400" : "no-cache"); // the phone's mix too: unchanged means no download
+    res.setHeader("cache-control", "no-cache"); // unchanged means no download, and a re-made copy shows up at once
     if (req.headers["if-none-match"] === tag && !req.headers.range) { res.statusCode = 304; res.end(); return; }
+    if (lite && /\.(bin|glb|gltf)$/.test(file) && !req.headers.range) { res.end(squeeze(req, res, readFileSync(file), tag)); return; }
   }
   // Seeking in the sound needs byte ranges
   const m = /bytes=(\d*)-(\d*)/.exec(req.headers.range ?? "");
@@ -293,7 +312,7 @@ const notify = {
   },
 };
 const ctx = await esbuild.context({
-  absWorkingDir: PROJECT, entryPoints: ["src/live_page.ts"], bundle: true, format: "esm", outfile: join(WORK, "live_page.js"), logLevel: "silent", write: false,
+  absWorkingDir: PROJECT, entryPoints: ["src/live_page.ts"], bundle: true, format: "esm", outfile: join(WORK, "live_page.js"), logLevel: "silent", write: false, minifyWhitespace: true, minifySyntax: true,
   plugins: [editOutsideWatch, notify],
 });
 await ctx.rebuild();
