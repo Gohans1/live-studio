@@ -1,0 +1,7 @@
+{
+  "name": "live-studio",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node src/live.mjs" },
+  "dependencies": { "esbuild": "0.28.1", "three": "0.186.1" }
+}

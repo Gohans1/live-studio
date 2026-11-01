@@ -1,0 +1,145 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Studio</title><style>
+html,body{margin:0;height:100%;background:#0b0c0c;color:#d6dbd8;font:14px/1.4 Consolas,monospace;overflow:hidden}
+#wrap{display:grid;grid-template:1fr auto auto auto/1fr 340px;height:100%}
+#view{grid-column:1;grid-row:1;min-height:0;min-width:0;display:flex;align-items:center;justify-content:center;position:relative;background:#050606}
+#stage{position:relative;background:#000;box-shadow:0 0 0 1px #1e2221}
+#stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#gl{cursor:crosshair}#gl.free{cursor:grab}
+#final{display:none;pointer-events:none}
+#clock{position:absolute;top:10px;right:10px;font:bold 26px Consolas,monospace;color:#fff;background:rgba(0,0,0,.68);padding:2px 10px;border-radius:3px;pointer-events:none;z-index:2}
+#badges{position:absolute;top:12px;left:10px;display:flex;gap:6px;pointer-events:none;z-index:2}
+#badges b{background:#c8512a;color:#fff;padding:2px 8px;border-radius:3px;font-weight:normal;display:none}
+#caption{position:absolute;left:0;right:0;bottom:12px;text-align:center;pointer-events:none;z-index:2}
+#caption span{background:rgba(0,0,0,.62);padding:3px 10px;border-radius:3px;color:#e8ece9}
+#pins{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
+.pin{position:absolute;width:18px;height:18px;margin:-11px 0 0 -11px;border:2px solid #ffd23e;border-radius:50%;box-shadow:0 0 0 1px #000}
+.pin.saved{border-color:#7fd4ff;width:12px;height:12px;margin:-8px 0 0 -8px}
+.pin i{position:absolute;left:24px;top:-3px;background:rgba(0,0,0,.8);color:#ffe68a;padding:1px 6px;font-style:normal;white-space:nowrap;border-radius:3px}
+#load{position:absolute;top:50px;left:12px;z-index:2}
+#err{display:none;position:absolute;inset:12px;overflow:auto;background:#3a0d0d;color:#ffd9d4;padding:12px;white-space:pre-wrap;z-index:5}
+#side{grid-row:1/5;grid-column:2;background:#131515;border-left:1px solid #262a2a;display:flex;flex-direction:column;min-height:0}
+#compose{padding:10px;background:#1b1f1f;border-bottom:1px solid #2c3131;display:none}
+#compose.open{display:block}
+#where{color:#ffe68a;margin-bottom:6px;word-break:break-word}
+#text{width:100%;box-sizing:border-box;height:112px;background:#0d0f0f;color:#fff;border:1px solid #ffd23e;border-radius:4px;padding:8px;font:15px/1.4 Segoe UI,Arial,sans-serif;resize:vertical}
+#compose small{color:#8d9895;display:block;margin-top:5px}
+#noteBtns{display:flex;gap:6px;margin-top:6px}
+#noteSave{flex:1;background:#ffd23e;border-color:#ffd23e;color:#111;font-weight:bold}#noteSave:hover{background:#ffe06e}
+#overwrite{display:none;background:#4a2a12;border:1px solid #c8782a;color:#ffd9a8;border-radius:4px;padding:5px 8px;margin-bottom:6px;font-family:Segoe UI,Arial,sans-serif}
+#sel{padding:8px 10px;border-bottom:1px solid #2c3131;font-family:Segoe UI,Arial,sans-serif}#sel>div:first-child{color:#ffe68a}
+#sel .btns{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}#sel button{padding:2px 7px;font-size:12px}
+#trial{padding:8px 10px;border-bottom:1px solid #2c3131;display:none}
+#trialHead{display:flex;align-items:center;gap:6px;color:#aab3b0;margin-bottom:6px}#trialHead span{flex:1}
+#trialOpts{display:flex;flex-direction:column;gap:3px}#trialOpts button{text-align:left;padding:3px 8px}
+#trialOpts button.chosen::after{content:" \2605";color:#ffd23e}
+#trialRow{display:flex;align-items:center;gap:6px;margin-top:6px}#trialGain{flex:1;min-width:0}
+#listhead{display:flex;align-items:center;gap:6px;padding:8px 10px;color:#aab3b0}
+.tab{background:none;border-color:transparent;color:#aab3b0;padding:5px 9px}.tab.on{background:#262a2a;border-color:#48524f;color:#fff;font-weight:bold}
+#saved{flex:1;text-align:right}
+.none{color:#8d9895;padding:10px 4px;font-family:Segoe UI,Arial,sans-serif}
+.note.old{cursor:default}.note img{display:block;width:100%;border-radius:3px;margin-top:6px}
+.fix{color:#7fd48a;font:13px/1.35 Segoe UI,Arial,sans-serif;margin-top:5px}
+.note .again{padding:2px 8px;font-size:12px}
+#saved{color:#7fd48a;font-size:12px}#saved.busy{color:#aab3b0}#saved.fail{color:#ffb35c;font-weight:bold}
+#list{flex:1;overflow:auto;padding:0 8px 8px}
+.note{background:#1a1d1d;border:1px solid #272c2b;border-radius:4px;padding:7px 8px;margin-bottom:6px;cursor:pointer}
+.note:hover{border-color:#48524f}.note.now{border-color:#7fd4ff}
+.note .h{display:flex;gap:8px;align-items:center}
+.note .w{flex:1;min-width:0;color:#8d9895;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note .time{background:#16323f;border-color:#2c6a85;color:#9fe0ff;font:bold 15px Consolas,monospace;padding:3px 8px}.note .time:hover{background:#1e4557}
+.note .b{white-space:pre-wrap;font-family:Segoe UI,Arial,sans-serif;margin-top:3px;color:#eef1ef}
+.note .del{padding:0 8px;line-height:22px;background:none;border-color:transparent;color:#8d9895;font-size:16px}
+.note.editing{border-color:#ffd23e}
+#ctl{grid-column:1;grid-row:4;background:#141616;border-top:1px solid #262a2a;padding:6px 10px 8px;min-width:0}
+#over,#detail{display:block;width:100%;cursor:ew-resize;border-radius:3px;touch-action:none}#gl{touch-action:none}
+#phone{display:none}
+#over{height:22px;margin-bottom:4px}#detail{height:176px}
+#row{grid-column:1;grid-row:2;display:flex;gap:10px;align-items:center;padding:8px 10px;background:#141616;border-top:1px solid #262a2a;min-width:0}
+#play,#pNote,#moreB{height:50px;font:bold 18px Segoe UI,Arial,sans-serif;border-radius:6px}
+#play{min-width:140px;background:#e8ece9;border-color:#e8ece9;color:#111}#play:hover{background:#fff}
+#pNote{min-width:240px;background:#ffd23e;border-color:#ffd23e;color:#111;box-shadow:0 0 14px rgba(255,210,62,.35)}#pNote:hover{background:#ffe06e}
+#moreB{min-width:50px;margin-left:auto;background:none;color:#8d9895}
+#mix{flex:1;min-width:0;color:#8d9895;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#more{grid-column:1;grid-row:3;display:none;background:#141616;border-top:1px solid #262a2a;padding:6px 10px;max-height:40vh;overflow:auto}#more.open{display:block}
+#moreRow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#undo{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:9;display:none;gap:12px;align-items:center;background:#2a2f2f;border:1px solid #48524f;border-radius:6px;padding:8px 12px;color:#fff;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.6)}#undo.open{display:flex}
+#undoB{background:#ffd23e;border-color:#ffd23e;color:#111;font-weight:bold;min-height:38px}
+button,select{background:#262a2a;color:#e6eae8;border:1px solid #3c4342;border-radius:4px;padding:4px 9px;font:inherit;cursor:pointer}
+button:hover{background:#333838}button.on{background:#c8512a;border-color:#e0714c}
+#shot{flex:1;min-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#perf,#built,#keys{color:#8d9895}#keys{font-size:12px;margin-top:4px}
+/* Phone: picture stays on top, one column to scroll below it, no keyboard so every key has a button, targets big enough for a thumb */
+@media (max-width:820px),(max-height:520px){
+  /* Only the page itself scrolls: with body scrolling too, the picture below can't stick */
+  html{overflow:auto;height:auto;-webkit-text-size-adjust:100%}
+  body{overflow:visible;height:auto}
+  :root{--pic:min(56.25vw,62vh)}
+  #wrap{display:flex;flex-direction:column;height:auto}#row{order:1}#more{order:2}#ctl{order:3}#side{order:4}
+  #view{position:sticky;top:0;z-index:4;width:100%;aspect-ratio:16/9;max-height:62vh}
+  #clock{font-size:17px;top:4px;right:4px;padding:1px 6px}
+  #badges{top:4px;left:4px}#badges b{font-size:11px}
+  #caption{bottom:4px;font-size:12px}
+  #ctl{padding:6px 8px}
+  #over{height:34px}
+  /* The two buttons that matter stay under the picture however far the notes scroll */
+  #row{position:sticky;top:var(--pic);z-index:4;padding:6px 8px;gap:8px}
+  #play{flex:0 0 34%;min-width:0;height:52px}#pNote{flex:1;min-width:0;height:52px}#moreB{flex:0 0 46px;min-width:0;height:52px;margin:0}
+  #mix{position:absolute;right:8px;top:-24px;flex:none;max-width:70%;background:rgba(0,0,0,.72);color:#e8ece9;padding:1px 6px;border-radius:3px;font-size:12px}#mix:empty{display:none}
+  #more{max-height:none}
+  #moreRow button,#moreRow select,#phone button{min-height:40px;padding:4px 10px}
+  #phone{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  #freeB,#camB,#finalB,#keys,#perf{display:none}
+  #shot{flex-basis:100%;order:9}
+  #side{border-left:0;border-top:1px solid #262a2a;display:block}
+  #list{overflow:visible}
+  #text{font-size:16px} /* below 16px, phones zoom the whole page on focus */
+  #noteBtns button{min-height:44px;font-size:15px;padding:4px 16px}
+  #compose small{display:none}
+  .note .b{font-size:16px}
+  .tab{min-height:42px;font-size:14px}
+  .note .again{min-height:42px;font-size:14px;padding:4px 10px}
+  .note .time{font-size:17px;min-height:42px;padding:4px 12px}
+  .note .del{min-width:42px;min-height:42px;font-size:20px}
+  /* Right under the picture, so opening a note never scrolls the page and a tap still lands on the picture */
+  #compose{position:fixed;top:var(--pic);left:0;right:0;z-index:5;box-shadow:0 6px 14px rgba(0,0,0,.6)}
+  #text{height:76px}
+  #sel button,#trialOpts button,#trialRow button,#copyAll{min-height:38px;font-size:14px}
+  #trialGain{height:30px}
+}
+/* Phone held upright: the page stands still and only the notes scroll, so the list can follow the film */
+@media (max-width:820px) and (min-height:521px){
+  html,body{overflow:hidden;height:100%}
+  #wrap{height:100dvh}
+  #view,#row,#ctl{flex:none}
+  #more{flex:none;max-height:34dvh;overflow:auto}
+  #side{flex:1;min-height:0;display:flex;flex-direction:column}
+  #listhead{flex:none}
+  #list{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+}
+</style>
+<div id="wrap">
+  <div id="view"><div id="stage"><canvas id="gl" width="960" height="540"></canvas><canvas id="final" width="1920" height="1080"></canvas>
+    <div id="pins"></div><div id="clock">00:00.000</div><div id="badges"><b id="bFree">CAMERA TỰ DO</b><b id="bFinal">CHẤT LƯỢNG FINAL</b><b id="bLoop">LẶP SHOT</b></div><div id="caption"></div><div id="load"></div></div><pre id="err"></pre></div>
+  <div id="row"><button id="play">▶ Phát</button><button id="pNote">✎ Ghi chú</button><span id="mix"></span><button id="moreB" title="Các nút khác">&#8943;</button></div>
+  <div id="more">
+    <div id="moreRow"><button id="prev" title="[">&#9664; shot</button><button id="next" title="]">shot &#9654;</button>
+      <select id="rate" title="Tốc độ"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="1.5">1.5x</option><option value="2">2x</option></select>
+      <button id="loopB" title="L">Lặp shot</button><button id="freeB" title="F">Camera tự do</button><button id="camB" title="K">Chép góc máy</button><button id="finalB" title="G">Xem final</button><button id="muteB" title="M">Tắt tiếng</button><button id="copyAll" title="Chép mọi ghi chú chưa xong">Chép hết ghi chú</button>
+      <span id="shot"></span><span id="perf"></span></div>
+    <div id="phone"><button id="pBack5">-5s</button><button id="pBack">-1 hình</button><button id="pFwd">+1 hình</button><button id="pFwd5">+5s</button><button id="pIn">Timeline +</button><button id="pOut">Timeline -</button></div>
+    <div id="keys">Bấm vào hình: ghim + nói | N ghi chú | Space phát | &larr; &rarr; 1 hình | Shift+&larr; &rarr; 5s | [ ] shot | lăn chuột trên timeline: phóng to | F camera tự do: kéo lia, lăn tiến lùi, chuột phải dời, Shift+kéo xoay quanh, WASD QE đi, - = ống kính | K chép góc máy | G xem final | L lặp shot | M tắt tiếng | 0-9 đổi tiếng đang thử</div>
+    <div id="sel"></div>
+    <div id="trial"><div id="trialHead"><span>Thử tiếng (phím 0-9)</span><select id="trialGroup"></select></div><div id="trialOpts"></div>
+      <div id="trialRow"><input id="trialGain" type="range" min="0" max="2" step="0.05" value="1" title="To nhỏ"><span id="trialGainText">100%</span><button id="trialGo" title="Nhảy tới chỗ có tiếng này và phát">Nghe</button><button id="trialPick" title="Dùng tiếng này cho phim">Chốt</button></div></div>
+  </div>
+  <aside id="side">
+    <div id="compose"><div id="where"></div><div id="overwrite">⚠ Đang sửa ghi chú cũ: bấm Xong là chữ mới ghi đè chữ cũ</div><textarea id="text" placeholder="Gõ hoặc nói..."></textarea><div id="noteBtns"><button id="noteSave">Xong</button><button id="noteCancel">Hủy</button></div><small>Tự giữ từng chữ, tải lại trang không mất | Enter xong rồi xem tiếp | Shift+Enter xuống dòng | Esc hủy</small></div>
+    <div id="listhead"><button id="tabOpen" class="tab"></button><button id="tabHist" class="tab"></button><span id="saved"></span></div>
+    <div id="list"></div>
+  </aside>
+  <div id="ctl">
+    <canvas id="over"></canvas><canvas id="detail"></canvas>
+  </div>
+</div>
+<div id="undo"><span id="undoText"></span><button id="undoB">Hoàn tác</button></div>
+<audio id="audio" preload="auto"></audio><script type="module" src="/live_page.js"></script>

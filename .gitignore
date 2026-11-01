@@ -1,0 +1,5 @@
+node_modules/
+renders/
+notes/
+.venv/
+__pycache__/
