@@ -39,6 +39,26 @@ let compose = null; // the note being spoken: { t, pin, resume }
 const shotIndex = (x) => { let i = 0; SHOTS.forEach((s, n) => { if (x >= s.t) i = n; }); return i; };
 const shotEnd = (i) => SHOTS[i + 1]?.t ?? DURATION;
 const lineAt = (x) => voiceOut.find((l) => x >= l.s && x <= l.e + 0.35) ?? null;
+// One transcribed line can run to 95 words: a caption is the piece being said now, cut where a reader would pause
+const CAPTION_WORDS = 10;
+const captionPieces = (words) => {
+  const pieces = [];
+  let piece = [];
+  for (const word of words) {
+    piece.push(word);
+    if (/[.?!]["']?$/.test(word.w) || (/[,;:]$/.test(word.w) && piece.length >= 5) || piece.length >= CAPTION_WORDS) { pieces.push(piece); piece = []; }
+  }
+  if (piece.length) { if (piece.length < 3 && pieces.length) pieces.at(-1).push(...piece); else pieces.push(piece); }
+  return pieces;
+};
+const captionAt = (x) => {
+  const line = lineAt(x);
+  if (!line) return null;
+  if (!line.words.length) return line.text;
+  line.pieces ??= captionPieces(line.words);
+  const now = line.pieces.findLast((piece) => x >= piece[0].s) ?? line.pieces[0];
+  return now.map((word) => word.w).join(" ");
+};
 const seek = (x) => {
   t = Math.max(0, Math.min(DURATION - 0.01, Math.round(x * FPS) / FPS)); // whole frames, so a time said out loud is a frame that exists
   if (audio.readyState > 0) audio.currentTime = t;
@@ -228,12 +248,9 @@ const openNote = (pin) => {
   render(t);
   if (finalOn && finalRender) drawFinal();
   const i = shotIndex(t);
-  const line = lineAt(t);
-  compose = { t, shot: i, shotName: comments[i] ?? "", pin, resume: wasPlaying, wasPlaying, spoken: line?.text };
+  compose = { t, shot: i, shotName: comments[i] ?? "", pin, resume: wasPlaying, wasPlaying, spoken: captionAt(t) ?? undefined };
   showBox();
   text.focus();
-  // For dictating straight into the chat instead: the place is already on the clipboard
-  navigator.clipboard?.writeText(`${whereText(compose)}: `).catch(() => {});
   drawPins();
 };
 // What's being typed is on the device from the first letter: a reload or a killed tab brings it back
@@ -979,9 +996,9 @@ async function main() {
       const i = shotIndex(t);
       $("clock").textContent = stamp(t);
       $("shot").textContent = `shot ${i}: ${comments[i] ?? ""}`;
-      const line = lineAt(t);
+      const words = captionAt(t);
       $("caption").innerHTML = "";
-      if (line) { const s = document.createElement("span"); s.textContent = line.text; $("caption").append(s); }
+      if (words) { const s = document.createElement("span"); s.textContent = words; $("caption").append(s); }
       drawTimelines();
       drawPins();
       if (finalOn && finalRender) {
@@ -1037,6 +1054,21 @@ const setLoop = (on) => { looping = on; window.__loopFrom = on ? t : undefined; 
 $("loopB").onclick = () => setLoop(!looping);
 const toggleMute = () => { audio.muted = !audio.muted; $("muteB").classList.toggle("on", audio.muted); };
 $("muteB").onclick = toggleMute;
+// Each device remembers its own choice; storage can be missing in a private window, and then captions just stay on
+const showCaptions = (on) => {
+  $("caption").hidden = !on;
+  $("capB").textContent = `Phụ đề: ${on ? "bật" : "tắt"}`;
+  $("capB").classList.toggle("on", on);
+  $("capB").setAttribute("aria-pressed", on);
+};
+let captionsOn = true;
+try { captionsOn = localStorage.getItem("captions") !== "off"; } catch {}
+showCaptions(captionsOn);
+$("capB").onclick = () => {
+  captionsOn = !captionsOn;
+  showCaptions(captionsOn);
+  try { localStorage.setItem("captions", captionsOn ? "on" : "off"); } catch {}
+};
 $("rate").onchange = () => { audio.playbackRate = Number($("rate").value); };
 $("copyAll").onclick = () => { navigator.clipboard?.writeText(notes.filter((n) => !n.done).sort((a, b) => a.t - b.t).map((n) => `${whereText(n)}: ${n.text}`).join("\n")); flash("đã chép hết"); };
 const jump = (d) => { const i = shotIndex(t); seek(d < 0 && t - SHOTS[i].t > 0.4 ? SHOTS[i].t : SHOTS[Math.max(0, Math.min(SHOTS.length - 1, i + d))].t); };
