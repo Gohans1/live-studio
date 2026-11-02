@@ -2,6 +2,7 @@
   "name": "live-studio",
   "private": true,
   "type": "module",
-  "scripts": { "start": "node src/live.mjs" },
+  "exports": { "./edit": "./src/edit.ts", "./src/live.mjs": "./src/live.mjs" },
+  "scripts": { "demo": "cd demo && node ../src/live.mjs" },
   "dependencies": { "esbuild": "0.28.1", "three": "0.186.1" }
 }

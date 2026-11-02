@@ -2,9 +2,9 @@
 // What the studio edits, in one file: when each action and sound happens, where cuts fall, how the voice is paced.
 // Every time in the film is written in the voice's original seconds ("source"); the voice edit stretches those into the seconds
 // you hear ("out"). So moving a sentence carries the actions on its words along with it.
-import data from "./edit.json";
+// The film's data comes in through setEdit from the film's own src/edit.ts, the same way it does on every later save.
 
-export const EDIT = data;
+export const EDIT = {};
 export const setEdit = (d) => { for (const k of Object.keys(EDIT)) delete EDIT[k]; Object.assign(EDIT, d); };
 
 const map = (x, a, b) => {

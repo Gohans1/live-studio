@@ -12,7 +12,7 @@ Needs Node 20+ and Python 3 (for the small helper scripts). ffmpeg is needed for
 
 ```bash
 npm install
-node src/live.mjs 4321
+npm run demo -- 4321
 ```
 
 Open http://localhost:4321. The interface text is in Vietnamese for now: **Phát** is play, **Ghi chú** is note.
@@ -55,15 +55,20 @@ python notes_report.py --shot 3    # everything about one shot's notes
 
 ## Use it on your own film
 
-Each project keeps its own copy of the studio inside its `src/`, so a clone of the project runs by itself and can change anything it likes:
+There is one studio: this repo. A film never holds a copy, so a fix made here reaches every film the next time its studio starts.
 
 ```bash
-node apply.mjs ../my-film --init   # a new project: the studio plus the demo's parts to replace
-node apply.mjs ../my-film          # later: bring the newest studio in
-node apply.mjs ../my-film --dry    # only say what would happen
+git clone https://github.com/Gohans1/live-studio ../live-studio   # beside the film
+npm install --prefix ../live-studio
+node ../live-studio/init.mjs .          # connect this project, --dry to only see what it would do
+node src/live.mjs 4321
 ```
 
-`.live-studio.json` in the project records the commit it last took. Updating is a three-way merge against that commit: files the project never touched are replaced, its own changes are kept, and if the same lines changed on both sides the file is left alone and named. Improvements meant for every project are made here, then applied. `--init` never writes over a file that already exists.
+`init.mjs` adds a `file:` dependency, so `node_modules/live-studio` is a link to this repo, and writes three small files into the film: `src/live.mjs` and `notes_report.py` open the studio on this film, and `src/edit.ts` hands `edit.json` to it. It refuses if a file about to be removed holds changes this repo never had, so they can be moved here first. A project with no film yet gets the demo's parts to replace.
+
+The film owns everything else: `src/scene.ts`, `src/edit.json`, `src/timing.ts`, `voice_map.py`, `voice_edit.py`, `sound.py`, `make_lite.py`, `assets/`. The `demo/` folder is the example of all of them. The studio finds them through two names when it bundles: `film/...` is the film's `src/`, `live-studio/edit` is `src/edit.ts` here.
+
+Every film runs the same studio, so a change here affects them all. Saving a page file reloads the open pages; a change to `src/live.mjs` or `src/versions.mjs` needs each studio restarted.
 
 Replace `src/scene.ts`. It exports `SHOTS`, `SHOTS_OUT`, `DURATION`, `applyEdit` and `buildScene(canvas, W, H, draft)`, which returns `draw(t)` with `draw.tools` attached. The demo scene shows the whole contract in about 80 lines, and `draw(t)` must be able to draw any moment straight away.
 

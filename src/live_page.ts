@@ -2,8 +2,8 @@
 // The studio: watch the film without rendering it, click the picture to say what's wrong where, and leave the rest to the code.
 // Same scene as the render, drawn live, with the sound as the clock. Saving code reloads at the same second.
 import * as THREE from "three";
-import { applyEdit, buildScene, DURATION, SHOTS_OUT as SHOTS } from "./scene";
-import { EDIT, fromSource, setEdit, toSource } from "./edit";
+import { applyEdit, buildScene, DURATION, SHOTS_OUT as SHOTS } from "film/scene";
+import { EDIT, fromSource, setEdit, toSource } from "film/edit";
 
 const FPS = 30;
 const PHONE = matchMedia("(pointer: coarse)").matches && Math.min(innerWidth, innerHeight) < 600;
@@ -242,6 +242,7 @@ const showBox = () => {
   listNotes();
 };
 const openNote = (pin) => {
+  if (window.__viewOnly) return; // a shared copy only plays, there is no one to send a note to
   if (compose?.editing) { text.focus(); return; } // an old note's box stays on that note until Xong or Hủy
   const wasPlaying = compose ? compose.wasPlaying : playing;
   // Words already written belong to the note they were written for: a new place starts a new note. On the same frame a click just moves the pin
@@ -1078,6 +1079,7 @@ const applyShow = () => {
   v.classList.toggle("showBefore", cmp.on && cmp.show !== "after");
   v.classList.toggle("showAfter", !cmp.on || cmp.show !== "before");
   $("cmpB").classList.toggle("on", cmp.on);
+  $("cmpB").setAttribute("aria-pressed", cmp.on);
   $("cmpBar").hidden = !cmp.on;
   $("bAfter").style.display = cmp.on ? "block" : "none";
   $("cmpFlip").textContent = cmp.show === "both" ? "Bật qua lại" : cmp.show === "before" ? "Đang xem: TRƯỚC" : "Đang xem: SAU";

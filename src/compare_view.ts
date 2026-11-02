@@ -1,7 +1,7 @@
 // @ts-nocheck
 // One version of the film, alone in a frame, for the studio to draw beside the current one. Its edit.json is the version's own (see versions.mjs).
-import { buildScene, DURATION, SHOTS_OUT } from "./scene";
-import { fromSource, toSource } from "./edit";
+import { buildScene, DURATION, SHOTS_OUT } from "film/scene";
+import { fromSource, toSource } from "film/edit";
 
 (async () => {
   try { if (parent.__assets) window.__assets = parent.__assets; } catch {}

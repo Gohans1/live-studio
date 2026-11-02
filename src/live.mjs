@@ -12,7 +12,13 @@ import * as esbuild from "esbuild";
 import { createVersions } from "./versions.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const PROJECT = resolve(here, "..");
+// The film being opened: its launcher says so, or the folder this runs in. Everything of the film's is under here, everything in this file's folder is the studio's.
+const PROJECT = resolve(process.env.LIVE_PROJECT ?? process.cwd());
+const SRC = join(PROJECT, "src");
+if (!existsSync(join(SRC, "scene.ts"))) { console.error(`${PROJECT} has no src/scene.ts: run this inside a film, or try npm run demo`); process.exit(1); }
+// One copy of three: the film's and the studio's would each otherwise bring their own, and objects from one fail instanceof in the other
+const THREE = [join(PROJECT, "node_modules/three"), join(here, "../node_modules/three")].find((p) => existsSync(p));
+const ALIAS = { film: SRC, "live-studio/edit": join(here, "edit.ts"), three: THREE };
 const VENV_PYTHON = join(PROJECT, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python");
 const PYTHON = existsSync(VENV_PYTHON) ? VENV_PYTHON : process.platform === "win32" ? "python" : "python3";
 const PUBLIC = join(PROJECT, "assets/public");
@@ -21,7 +27,7 @@ const MIX = join(WORK, "mix_dry.wav"); // without the sounds being tried: the pa
 const MIX_SMALL = join(WORK, "mix_small.webm"); // the same mix for anything but this machine: a fifteenth of the size, and Opus stays on the clock where mp3 ran up to 30ms off
 const LITE = join(WORK, "lite"); // small copies of the assets, see make_lite.py
 const TRIALS = join(WORK, "trials.json");
-const EDIT = join(here, "edit.json");
+const EDIT = join(SRC, "edit.json");
 const CHOICES = join(PROJECT, "sound_choices.json");
 const PORT = Number(process.argv[2]) || 4321;
 mkdirSync(WORK, { recursive: true });
@@ -59,7 +65,7 @@ const smallMix = () => {
 let bundle = "";
 const clients = new Set();
 const send = (event, data = "") => { for (const c of clients) c.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
-const versions = createVersions({ project: PROJECT, here, port: PORT, send, esbuild, mixFile: MIX, editFile: EDIT, assetsDir: PUBLIC });
+const versions = createVersions({ project: PROJECT, here, alias: ALIAS, port: PORT, send, esbuild, mixFile: MIX, editFile: EDIT, assetsDir: PUBLIC });
 
 // Notes spoken in the studio: one JSON object per line, so an AI agent can read them. Pictures sit beside them in notes/img
 const NOTES = join(PROJECT, "notes/notes.jsonl");
@@ -104,7 +110,7 @@ const mapVoice = () => {
 };
 
 const shotComments = () => {
-  const s = readFileSync(join(here, "scene.ts"), "utf8").replace(/\r/g, "");
+  const s = readFileSync(join(SRC, "scene.ts"), "utf8").replace(/\r/g, "");
   return s.slice(s.indexOf("export const SHOTS = ["), s.indexOf("];\nexport let DURATION")).split("\n").slice(1).filter((l) => l.trim()).map((l) => l.match(/\/\/ (.*)$/)?.[1] ?? "");
 };
 
@@ -281,7 +287,7 @@ const debounce = (f, ms) => { let h; return (...a) => { clearTimeout(h); h = set
 // Windows can report a file as changed just because something read it, and every remix restarts the sound on every open page:
 // what counts is whether anything's size or time really moved
 const stamp = (p) => { const s = statSync(p); return s.isDirectory() ? readdirSync(p).map((n) => n + stamp(join(p, n))).join() : `:${s.size}:${s.mtimeMs}`; };
-const soundFiles = [join(PROJECT, "sound.py"), join(here, "timing.ts"), join(PUBLIC, "agent/sfx2"), join(PUBLIC, "agent/sfx_try")];
+const soundFiles = [join(PROJECT, "sound.py"), join(SRC, "timing.ts"), join(PUBLIC, "agent/sfx2"), join(PUBLIC, "agent/sfx_try")];
 const stamps = () => soundFiles.map(stamp).join();
 let soundsSeen = stamps();
 const soundsChanged = debounce(() => { const now = stamps(); if (now !== soundsSeen) { soundsSeen = now; remix(); } }, 300);
@@ -316,7 +322,7 @@ const notify = {
   },
 };
 const ctx = await esbuild.context({
-  absWorkingDir: PROJECT, entryPoints: ["src/live_page.ts"], bundle: true, format: "esm", outfile: join(WORK, "live_page.js"), logLevel: "silent", write: false, minifyWhitespace: true, minifySyntax: true,
+  absWorkingDir: PROJECT, entryPoints: [join(here, "live_page.ts")], alias: ALIAS, bundle: true, format: "esm", outfile: join(WORK, "live_page.js"), logLevel: "silent", write: false, minifyWhitespace: true, minifySyntax: true,
   plugins: [editOutsideWatch, notify],
 });
 await ctx.rebuild();

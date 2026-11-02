@@ -115,7 +115,7 @@ const envelopeOf = (file) => {
   return out;
 };
 
-export const createVersions = ({ project, here, port, send, esbuild, mixFile, editFile, assetsDir }) => {
+export const createVersions = ({ project, here, alias, port, send, esbuild, mixFile, editFile, assetsDir }) => {
   const ROOT = join(project, "renders/versions");
   const CODE = join(ROOT, "code"), EDITS = join(ROOT, "edits"), SOUNDS = join(ROOT, "sound"), ASSETS = join(ROOT, "assets"), COMPARES = join(ROOT, "compares");
   for (const d of [CODE, EDITS, SOUNDS, ASSETS, COMPARES]) mkdirSync(d, { recursive: true });
@@ -324,7 +324,7 @@ export const createVersions = ({ project, here, port, send, esbuild, mixFile, ed
       b.onLoad({ filter: /.*/, namespace: "version-edit" }, () => ({ contents: 'export default await (await fetch(new URL("edit.json", location.href))).json();', loader: "js" }));
     } };
     const noteBuilt = { name: "note-built", setup(b) { b.onEnd((r) => { if (!r.errors.length) { code = r.outputFiles[0].contents; changed(); } }); } };
-    const ctx = await esbuild.context({ absWorkingDir: project, entryPoints: [join(here, "compare_view.ts")], bundle: true, format: "esm", outfile: join(ROOT, "view.js"), logLevel: "silent", write: false, minifyWhitespace: true, minifySyntax: true, plugins: [editAtRuntime, noteBuilt] });
+    const ctx = await esbuild.context({ absWorkingDir: project, entryPoints: [join(here, "compare_view.ts")], alias, bundle: true, format: "esm", outfile: join(ROOT, "view.js"), logLevel: "silent", write: false, minifyWhitespace: true, minifySyntax: true, plugins: [editAtRuntime, noteBuilt] });
     await ctx.rebuild();
     await ctx.watch();
   };

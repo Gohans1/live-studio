@@ -56,7 +56,8 @@ button.on{background:var(--tint);color:var(--accent)}
 #cmpB em{font-style:normal;font-size:12px;background:#CE5D97;color:#100F0F;border-radius:9px;padding:0 6px}#cmpB.on em{background:#100F0F;color:#E47DA8}
 #row{flex-wrap:wrap}
 #cmpBar{flex:1 0 100%;order:10;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-#cmpWhich{max-width:240px}#cmpStatus{flex:1;min-width:120px;color:var(--text-2);font-size:12px}
+#cmpBar button,#cmpWhich{min-height:40px}#cmpWhich{max-width:240px}#cmpStatus{flex:1;min-width:120px;color:var(--text-2);font-size:12px;font-variant-numeric:tabular-nums}
+#cmpKey{color:var(--text-2);font-size:12px;white-space:nowrap}#cmpKey i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 8px;vertical-align:-1px}
 .note.change{cursor:pointer}.note.change small{display:block;color:var(--text-2);font-size:12px;overflow-wrap:anywhere}
 .kind{font-size:12px;font-weight:600}.kind.picture{color:#E47DA8}.kind.sound{color:var(--warn)}.kind.edit{color:var(--accent)}
 
@@ -190,7 +191,7 @@ button.on{background:var(--tint);color:var(--accent)}
   <div id="view"><div id="beforeStage"><iframe id="beforeFrame" title="Bản trước"></iframe><div class="cmpBoxes" id="boxesB"></div><div id="clockB">00:00.000</div><b class="cmpTag">TRƯỚC</b><div id="beforeLoad"></div></div><div id="stage"><canvas id="gl" width="960" height="540"></canvas><canvas id="final" width="1920" height="1080"></canvas>
     <div class="cmpBoxes" id="boxesA"></div><div id="pins"></div><div id="clock">00:00.000</div><div id="badges"><b id="bFree">CAMERA TỰ DO</b><b id="bFinal">CHẤT LƯỢNG FINAL</b><b id="bLoop">LẶP SHOT</b><b id="bAfter">SAU</b><span id="mix" role="status"></span></div><div id="caption"></div><div id="load"></div></div><pre id="err"></pre></div>
   <div id="row"><button id="play"><svg class="i"><use id="playIcon" href="#i-play"/></svg><span id="playText">Phát</span></button><button id="pNote"><svg class="i"><use href="#i-note"/></svg>Ghi chú</button><button id="moreB" title="Các nút khác" aria-label="Các nút khác" aria-expanded="false"><svg class="i"><use href="#i-more"/></svg></button><button id="cmpB" title="B: so với bản xem lần cuối" hidden><svg class="i"><use href="#i-compare"/></svg><span>So sánh</span></button>
-    <div id="cmpBar" hidden><button id="cmpPrev" title="Z">‹ Chỗ đổi</button><button id="cmpNext" title="X">Chỗ đổi ›</button><button id="cmpFlip" title="V">Bật qua lại</button><select id="cmpWhich" title="So với bản nào" aria-label="So với bản nào"></select><span id="cmpStatus" role="status"></span></div></div>
+    <div id="cmpBar" hidden><button id="cmpPrev" title="Z">‹ Chỗ đổi</button><button id="cmpNext" title="X">Chỗ đổi ›</button><button id="cmpFlip" title="V">Bật qua lại</button><select id="cmpWhich" title="So với bản nào" aria-label="So với bản nào"></select><span id="cmpKey"><i style="background:#CE5D97"></i>hình<i style="background:#D0A215"></i>tiếng</span><span id="cmpStatus" role="status"></span></div></div>
   <div id="more">
     <div id="phone"><button id="pBack5">-5s</button><button id="pBack">-1 hình</button><button id="pFwd">+1 hình</button><button id="pFwd5">+5s</button><button id="pOut">Timeline −</button><button id="pIn">Timeline +</button></div>
     <div id="moreRow"><button id="prev" title="[">‹ Shot</button><button id="next" title="]">Shot ›</button>
