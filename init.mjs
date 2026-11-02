@@ -71,7 +71,7 @@ pkg.dependencies = { ...pkg.dependencies, "live-studio": `file:${relative(PROJEC
 say("linked", `live-studio -> ${pkg.dependencies["live-studio"]}`);
 write("package.json", JSON.stringify(pkg, null, 2) + "\n");
 if (!dry && !existsSync(inProject("node_modules/live-studio"))) {
-  const r = spawnSync("npm", ["install", "--no-audit", "--no-fund"], { cwd: PROJECT, stdio: "inherit", shell: process.platform === "win32" });
+  const r = spawnSync("npm install --no-audit --no-fund", { cwd: PROJECT, stdio: "inherit", shell: true });
   if (r.status) process.exit(r.status);
 }
 console.log(dry ? "nothing changed" : "done: node src/live.mjs");
