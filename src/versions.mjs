@@ -313,7 +313,7 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
       res.setHeader("cache-control", "max-age=31536000");
       if (before[2] === "view.js") { res.setHeader("content-type", "text/javascript"); res.end(readFileSync(join(CODE, `${v.code}.js`))); }
       else if (before[2] === "edit.json") { res.setHeader("content-type", "application/json"); res.end(readFileSync(join(EDITS, `${v.edit}.json`))); }
-      else { res.setHeader("content-type", "text/html; charset=utf-8"); res.end('<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100%;height:100%}</style><canvas id="gl"></canvas><script type="module" src="view.js"></script>'); }
+      else { res.setHeader("content-type", "text/html; charset=utf-8"); res.end('<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100%;height:100%}</style><canvas id="gl"></canvas><script>for(const k of["error","unhandledrejection"])addEventListener(k,e=>parent.postMessage({filmError:String(e.message??e.reason)},"*"))</script><script type="module" src="view.js"></script>'); }
       return true;
     }
     const pair = /^\/compare(-job)?\/([0-9a-f]+)\/([0-9a-f]+)(?:\/(done|rows|start|finish|fail))?$/.exec(url);

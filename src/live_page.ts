@@ -1327,6 +1327,7 @@ addEventListener("keydown", (e) => {
   e.preventDefault();
 });
 
+window.__pageUp = true; window.__boot?.close();
 const events = new EventSource("/events");
 // A code change waits for a note being spoken: reloading now would throw the words away
 events.addEventListener("code", () => { if (compose || playing) { reloadWaiting = true; flash("code đổi, sẽ tải lại khi dừng"); return; } sessionStorage.setItem("t", t); location.reload(); });

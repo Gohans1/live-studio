@@ -213,4 +213,8 @@ button.on{background:var(--tint);color:var(--accent)}
   </aside>
 </div>
 <div id="undo" role="status"><span id="undoText"></span><button id="undoB">Hoàn tác</button></div>
-<audio id="audio" preload="auto"></audio><script type="module" src="/live_page.js"></script>
+<audio id="audio" preload="auto"></audio><script>
+// A film that throws while loading stops the page's own code before it starts: this says so, and comes back once the film is fixed
+addEventListener("error", (e) => { if (window.__pageUp) return; const b = document.getElementById("err"); b.textContent = e.message; b.style.display = "block"; });
+if (!window.__viewOnly) { window.__boot = new EventSource("/events"); for (const k of ["code", "edit"]) window.__boot.addEventListener(k, () => { if (!window.__pageUp) location.reload(); }); }
+</script><script type="module" src="/live_page.js"></script>
