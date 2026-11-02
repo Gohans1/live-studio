@@ -7,6 +7,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renam
 import { dirname, join, relative } from "node:path";
 
 const KEEP = 30;
+const RANGE_GAP = 1; // seconds
 const hash = (data) => createHash("md5").update(data).digest("hex").slice(0, 12);
 const ENVELOPE_STEP = 0.05, SOUND_LIMIT = 0.001, SOUND_GAP = 0.5;
 const JOB_LIMIT = 15 * 60e3;
@@ -123,6 +124,9 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
   let index = { versions: [], seen: null, base: null };
   try { index = { ...index, ...JSON.parse(readFileSync(INDEX, "utf8")) }; } catch {}
   let code = null, job = null, timer = null;
+  for (const n of readdirSync(ROOT)) if (n.startsWith("chrome_")) rmSync(join(ROOT, n), { recursive: true, force: true }); // left by a studio that was killed
+  const failures = new Map(); // for this run only: restarting the studio tries a failed pair again, from where it stopped
+  const crashes = new Map();
 
   const saveIndex = () => {
     const fresh = `${INDEX}.new`;
@@ -190,7 +194,8 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
     send("versions");
   };
   // Saves come in bursts while an AI works, and one round of fixes is one thing to compare
-  const changed = () => { clearTimeout(timer); timer = setTimeout(snapshot, 1500); };
+  // The mix can be half written or locked when this runs: the next look finds it whole
+  const changed = () => { clearTimeout(timer); timer = setTimeout(() => { try { snapshot(); } catch (e) { console.log("versions: trying again:", e.message); changed(); } }, 1500); };
 
   const readEdit = (v) => JSON.parse(readFileSync(join(EDITS, `${v.edit}.json`), "utf8"));
   const soundRanges = (a, b, warpA, warpB) => {
@@ -221,14 +226,14 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
   const readRows = (a, b) => {
     const f = compareFile(a, b);
     const rows = [];
-    let total = 0, done = false, failed = null;
+    let total = 0, done = false;
     if (existsSync(f)) for (const l of readFileSync(f, "utf8").split("\n")) {
       if (!l.trim()) continue;
       let r;
       try { r = JSON.parse(l); } catch { continue; } // a line cut off when a run was stopped: that frame is simply drawn again
-      if (r.total) total = r.total; else if (r.done) done = true; else if (r.failed) failed = r.failed; else rows.push(r);
+      if (r.total) total = r.total; else if (r.done) done = true; else if (!r.failed) rows.push(r);
     }
-    return { rows, total, done, failed };
+    return { rows, total, done };
   };
   const startJob = (a, b) => {
     if (job?.a === a && job?.b === b) return true;
@@ -238,10 +243,22 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
     const profile = join(ROOT, `chrome_${process.pid}`);
     mkdirSync(profile, { recursive: true });
     const proc = spawn(chrome, [chrome.includes("headless-shell") ? "--headless" : "--headless=new", "--use-gl=angle", "--use-angle=default", "--enable-gpu", "--ignore-gpu-blocklist", "--no-first-run", "--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows", `--user-data-dir=${profile}`, "--remote-debugging-port=0", `http://127.0.0.1:${port}/compare-job/${a}/${b}`], { stdio: "ignore" });
-    const mine = { a, b, proc, profile, limit: setTimeout(() => { if (job === mine) stopJob(); }, JOB_LIMIT) };
+    const key = `${a}_${b}`;
+    const fail = (message) => { failures.set(key, message); send("compare", { a, b }); };
+    const mine = { a, b, proc, profile, limit: setTimeout(() => { if (job === mine) { stopJob(); fail("quá lâu, bật lại studio để dò tiếp"); } }, JOB_LIMIT) };
     job = mine;
     proc.on("error", (e) => { console.log("compare: Chrome did not start:", e.message); if (job === mine) job = null; });
-    proc.on("close", () => { if (job === mine) { clearTimeout(mine.limit); job = null; } });
+    // Closing by itself means it crashed: what it found is saved, so go on from there, but don't loop on a crash that keeps happening
+    proc.on("close", () => {
+      if (job !== mine) return;
+      clearTimeout(mine.limit);
+      job = null;
+      const n = (crashes.get(key) ?? 0) + 1;
+      crashes.set(key, n);
+      if (n > 2) { fail("Chrome cứ tắt giữa chừng, bật lại studio để dò tiếp"); return; }
+      console.log("compare: Chrome closed, going on");
+      setTimeout(() => startJob(a, b), 1000);
+    });
     return true;
   };
 
@@ -250,7 +267,7 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
     const warpB = editB.voice?.warp, warpA = editA.voice?.warp;
     const edits = describeEdit(editA, editB).map((e) => ({ at: e.source === null ? null : mapTime(warpB, e.source, 0, 1), text: e.text }));
     const pictureMayDiffer = A.code !== B.code || A.edit !== B.edit;
-    const { rows, total, done, failed } = readRows(a, b);
+    const { rows, total, done } = readRows(a, b), failed = failures.get(`${a}_${b}`) ?? null;
     let state = "none";
     if (pictureMayDiffer) {
       if (done) state = "done";
@@ -260,8 +277,9 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
     const sorted = rows.toSorted((p, q) => p.f - q.f), ranges = [];
     let open = null;
     for (const r of sorted) {
-      if (!r.n) { open = null; continue; }
-      if (open) { open.to = r.f / 30; open.whole ||= !!r.w; } else { open = { from: r.f / 30, to: r.f / 30, whole: !!r.w }; ranges.push(open); }
+      if (!r.n) continue;
+      // A hand that pauses for half a second is still one change
+      if (open && r.f / 30 - open.to <= RANGE_GAP) { open.to = r.f / 30; open.whole ||= !!r.w; } else { open = { from: r.f / 30, to: r.f / 30, whole: !!r.w }; ranges.push(open); }
     }
     return {
       a, b, atA: A.at, atB: B.at, edits, code: A.code !== B.code, sound: soundRanges(A, B, warpA, warpB), assets: assetChanges(A, B),
@@ -310,7 +328,7 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
     if (step === "start") appendFileSync(file, JSON.stringify({ total: data.total }) + "\n");
     if (step === "rows") appendFileSync(file, data.map((r) => JSON.stringify(r) + "\n").join(""));
     if (step === "finish") appendFileSync(file, '{"done":true}\n');
-    if (step === "fail") appendFileSync(file, JSON.stringify({ failed: String(data.message).slice(0, 300) }) + "\n");
+    if (step === "fail") failures.set(`${a}_${b}`, String(data.message).slice(0, 300));
     send("compare", { a, b });
     if (step === "finish" || step === "fail") { if (job?.a === a && job?.b === b) stopJob(); }
     res.end("ok");

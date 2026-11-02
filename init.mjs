@@ -37,7 +37,7 @@ const inProject = (f) => join(PROJECT, f);
 const lf = (buf) => buf.toString("utf8").replace(/\r\n/g, "\n");
 
 const git = (...a) => spawnSync("git", a, { cwd: HERE, encoding: "buffer", maxBuffer: 1 << 28 });
-const dirty = git("status", "--porcelain").stdout.toString().trim();
+const dirty = git("status", "--porcelain", "--", "src", "notes_report.py").stdout.toString().trim(); // running the demo may touch demo/, that's no matter here
 if (dirty) { console.error(`commit the studio first, so its history can tell a project's own changes from older studio code:\n${dirty}`); process.exit(1); }
 const everCommitted = (file, text) => {
   const log = git("log", "--format=%H", "--", file).stdout.toString().trim().split("\n");

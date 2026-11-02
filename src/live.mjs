@@ -135,7 +135,8 @@ const swapIn = async (fresh, target) => {
 const server = createServer(async (req, res) => {
   const url = decodeURIComponent(req.url.split("?")[0]);
   if (url === "/favicon.ico") { res.statusCode = 204; res.end(); return; }
-  if (await versions.route(req, res, url)) return;
+  // Comparing is an extra: nothing it trips over may take the studio down with it
+  try { if (await versions.route(req, res, url)) return; } catch (e) { console.log("versions:", e.message); if (!res.headersSent) res.statusCode = 500; res.end(); return; }
   if (url === "/") { res.setHeader("content-type", "text/html; charset=utf-8"); sendText(req, res, readFileSync(join(here, "studio.html"))); return; }
   if (url === "/notes.json") { res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store"); res.end(JSON.stringify(readNotes())); return; }
   if (url === "/voice_map.json") {
@@ -276,9 +277,13 @@ const editVoice = () => {
   p.on("close", (code) => {
     voicing = false;
     if (code) { console.log("voice edit failed"); return; }
-    const now = JSON.parse(readFileSync(EDIT, "utf8"));
-    Object.assign(now.voice, JSON.parse(out));
-    writeFileSync(EDIT, JSON.stringify(now, null, 0));
+    let now, paced;
+    try { now = JSON.parse(readFileSync(EDIT, "utf8")); paced = JSON.parse(out); } catch { console.log("voice edit: the edit file was mid-save, trying again"); setTimeout(editVoice, 500); return; }
+    // Written only when pacing really moved, or a file already right would be reformatted and read as a change
+    if (Object.keys(paced).some((k) => JSON.stringify(now.voice[k]) !== JSON.stringify(paced[k]))) {
+      Object.assign(now.voice, paced);
+      writeFileSync(EDIT, JSON.stringify(now, null, 0));
+    }
     if (voiceAgain) { voiceAgain = false; editVoice(); return; }
     remix();
   });
