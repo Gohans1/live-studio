@@ -9,6 +9,7 @@ import { networkInterfaces } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
+import { createVersions } from "./versions.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PROJECT = resolve(here, "..");
@@ -58,6 +59,7 @@ const smallMix = () => {
 let bundle = "";
 const clients = new Set();
 const send = (event, data = "") => { for (const c of clients) c.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
+const versions = createVersions({ project: PROJECT, here, port: PORT, send, esbuild, mixFile: MIX, editFile: EDIT, assetsDir: PUBLIC });
 
 // Notes spoken in the studio: one JSON object per line, so an AI agent can read them. Pictures sit beside them in notes/img
 const NOTES = join(PROJECT, "notes/notes.jsonl");
@@ -127,6 +129,7 @@ const swapIn = async (fresh, target) => {
 const server = createServer(async (req, res) => {
   const url = decodeURIComponent(req.url.split("?")[0]);
   if (url === "/favicon.ico") { res.statusCode = 204; res.end(); return; }
+  if (await versions.route(req, res, url)) return;
   if (url === "/") { res.setHeader("content-type", "text/html; charset=utf-8"); sendText(req, res, readFileSync(join(here, "studio.html"))); return; }
   if (url === "/notes.json") { res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store"); res.end(JSON.stringify(readNotes())); return; }
   if (url === "/voice_map.json") {
@@ -162,6 +165,7 @@ const server = createServer(async (req, res) => {
       }
       // Which version of the film this was said about
       try { note.version = execFileSync("git", ["describe", "--tags", "--always", "--dirty"], { cwd: PROJECT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch {}
+      note.film = versions.current() ?? undefined; // works without git too: renders/versions/index.json says what this version was
       const all = readNotes();
       if (!all.some((n) => n.id === note.id)) writeNotes([...all, note]); // a retry after a lost answer isn't a second note
       res.end("ok");
@@ -250,7 +254,7 @@ const remix = () => {
     if (!code) await swapIn(fresh, MIX);
     mixing = false;
     console.log(code ? "sound mix failed" : `sound mixed in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (!code) send("sound");
+    if (!code) { send("sound"); versions.changed(); }
     if (again) { again = false; remix(); }
   });
 };
@@ -293,7 +297,7 @@ watch(join(here, "studio.html"), debounce(() => send("code"), 100));
 // Voice edits are made in the file: the voice and the mix follow it
 const voiceEdits = () => { try { return JSON.stringify(JSON.parse(readFileSync(EDIT, "utf8")).voice.edits); } catch { return null; } };
 let editsSeen = voiceEdits();
-watch(EDIT, debounce(() => { send("edit"); const now = voiceEdits(); if (now !== null && now !== editsSeen) { editsSeen = now; editVoice(); } }, 100));
+watch(EDIT, debounce(() => { send("edit"); versions.changed(); const now = voiceEdits(); if (now !== null && now !== editsSeen) { editsSeen = now; editVoice(); } }, 100));
 
 // The edit file is read fresh by the page, so saving it must not reload the page: esbuild isn't told to watch it
 const editOutsideWatch = {
@@ -317,6 +321,7 @@ const ctx = await esbuild.context({
 });
 await ctx.rebuild();
 await ctx.watch();
+await versions.start();
 // This machine only, unless asked: --lan opens it to the network for a phone, and nothing here asks for a password
 const LAN = process.argv.includes("--lan");
 server.listen(PORT, LAN ? "0.0.0.0" : "127.0.0.1", () => {

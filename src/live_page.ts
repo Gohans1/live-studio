@@ -114,8 +114,9 @@ document.addEventListener("pointerdown", keepSound);
 // ---------- Picture fills the room it has
 const fit = () => {
   const r = $("view").getBoundingClientRect();
-  const s = Math.min(r.width / 16, r.height / 9);
-  stage.style.width = `${Math.floor(s * 16)}px`; stage.style.height = `${Math.floor(s * 9)}px`;
+  const side = cmp.on && cmp.show === "both"; // two pictures share the width
+  const s = Math.min((side ? (r.width - 2) / 2 : r.width) / 16, r.height / 9);
+  for (const el of [stage, $("beforeStage")]) { el.style.width = `${Math.floor(s * 16)}px`; el.style.height = `${Math.floor(s * 9)}px`; }
 };
 new ResizeObserver(fit).observe($("view"));
 
@@ -218,6 +219,7 @@ const noteContext = (c) => {
     },
     beats,
     view: { phone: PHONE, lite: !!window.__assets?.includes("lite"), canvas: [canvas.width, canvas.height], screen: [innerWidth, innerHeight] },
+    compare: cmp.on ? { before: cmp.before, show: cmp.show } : undefined,
   };
 };
 const snapshot = (pin, at = t) => {
@@ -513,6 +515,7 @@ const followNotes = (jump) => {
 };
 for (const ev of ["pointerdown", "wheel", "touchmove"]) addEventListener(ev, (e) => { if ($("list").contains(e.target)) listTouched = performance.now(); }, { passive: true });
 const showTab = (tab) => { noteTab = tab; listNotes(); };
+const listTabDiff = () => { const n = changes.length; $("tabDiff").hidden = !cmp.on && !n; $("tabDiff").textContent = `Thay đổi (${n})`; $("tabDiff").classList.toggle("on", noteTab === "diff"); };
 const listNotes = () => {
   const open = notes.filter((n) => !n.done).sort((a, b) => noteAt(a) - noteAt(b));
   const old = notes.filter((n) => n.done).sort((a, b) => (lastFixAt(a) < lastFixAt(b) ? 1 : -1));
@@ -520,7 +523,9 @@ const listNotes = () => {
   $("tabHist").textContent = `Lịch sử (${old.length})`;
   $("tabOpen").classList.toggle("on", noteTab === "open");
   $("tabHist").classList.toggle("on", noteTab === "history");
-  if (noteTab === "open") $("list").replaceChildren(...(open.length ? open.map(noteCard) : [emptyLine("Chưa có ghi chú")]));
+  listTabDiff();
+  if (noteTab === "diff") $("list").replaceChildren(...(changes.length ? changes.map(changeCard) : [emptyLine(cmpEmptyWords())]));
+  else if (noteTab === "open") $("list").replaceChildren(...(open.length ? open.map(noteCard) : [emptyLine("Chưa có ghi chú")]));
   else $("list").replaceChildren(...(old.length ? old.map(historyCard) : [emptyLine("Ghi chú sửa xong sẽ nằm ở đây, kèm việc đã làm")]));
   nearEl = null;
   followNotes(true);
@@ -634,6 +639,7 @@ const drawOverview = () => {
     drawWave(b, 0, DURATION, w, 2, h - 4);
   }
   g.drawImage(overBg, 0, 0, w, h);
+  for (const c of changes) if (c.from !== null) { g.fillStyle = c.kind === "sound" ? "#D0A215" : "#CE5D97"; g.fillRect((c.from / DURATION) * w - 1, h - 6, Math.max(3, ((c.to - c.from) / DURATION) * w), 6); }
   for (const n of notes) if (!n.done) { g.fillStyle = "#3AA99F"; g.fillRect((noteAt(n) / DURATION) * w - 1, 0, 2, 7); }
   const a = viewCentre() - span / 2;
   g.fillStyle = "rgba(255,255,255,.1)"; g.fillRect((a / DURATION) * w, 0, (span / DURATION) * w, h);
@@ -721,6 +727,13 @@ const drawDetail = () => {
   g.fillStyle = "#878580"; g.font = "10px Consolas,monospace";
   const tick = [1, 2, 5, 10, 30, 60].find((n) => (n / span) * w >= 56) ?? 60; // room for its label, whatever the screen
   for (let s = Math.ceil(a / tick) * tick; s <= b; s += tick) { g.fillRect(X(s), h - 5, 1, 5); g.fillText(`${pad(Math.floor(s / 60))}:${pad(s % 60)}`, X(s) + 3, h - 7); }
+  // What changed since the version being compared
+  for (const c of changes) {
+    if (c.from === null || c.to < a || c.from > b) continue;
+    const x0 = X(c.from), wide = Math.max(3, X(c.to) - x0), colour = c.kind === "sound" ? "#D0A215" : "#CE5D97";
+    g.globalAlpha = 0.18; g.fillStyle = colour; g.fillRect(x0, 20, wide, h - 20);
+    g.globalAlpha = 1; g.fillRect(x0, 20, wide, 3);
+  }
   // Notes, playhead
   for (const n of notes) if (n.t >= a && n.t <= b) { const x = X(n.t); g.fillStyle = n.done ? "#575653" : "#3AA99F"; g.beginPath(); g.moveTo(x - 5, 21); g.lineTo(x + 5, 21); g.lineTo(x, 30); g.fill(); g.fillRect(x, 21, 1, h - 21); }
   g.fillStyle = "#DA702C"; g.fillRect(X(t) - 1, 0, 2, h);
@@ -990,6 +1003,7 @@ async function main() {
       dirty = false;
       const a = performance.now();
       render(t);
+      drawBefore();
       lastDraw = performance.now() - a;
       drawMs = drawMs * 0.9 + lastDraw * 0.1;
       frames++;
@@ -1006,6 +1020,7 @@ async function main() {
         else if (finalAt !== t) drawFinal();
       }
       followNotes();
+      followChanges();
       sessionStorage.setItem("t", t);
       window.__live = { t, shot: i, drawMs };
       window.__editor ??= { boxes: () => boxes, seek, duration: () => DURATION, clear: () => { selected = null; drawEditor(); }, words: () => voice.lines.flatMap((l) => l.words.map((w) => w.s)) };
@@ -1023,6 +1038,7 @@ async function main() {
   };
   loop();
   extras.then(() => { restoreDraft(); window.__readyAt = Date.now(); });
+  loadVersions();
 }
 const loadVoice = async () => { const r = await getFile("/voice_map.json"); if (r.ok) { voice = await r.json(); refreshTimes(); } };
 
@@ -1041,6 +1057,199 @@ canvas.addEventListener("click", (e) => {
   render(t);
   openNote({ x: +x.toFixed(4), y: +y.toFixed(4), ...lookAtClick(x, y) });
 });
+
+// ---------- Before and after: an older version drawn beside this one, and what differs between them (versions.mjs finds it)
+const stored = (() => { try { return JSON.parse(sessionStorage.getItem("compare")); } catch { return null; } })();
+const SMALL_SCREEN = PHONE || matchMedia("(max-width:820px)").matches;
+var cmp = { on: !!stored?.on, show: stored?.show ?? (SMALL_SCREEN ? "after" : "both"), picked: stored?.picked ?? null, before: null, current: null, seen: null, film: null, result: null, versions: [] };
+var changes = [];
+const keepCompare = () => { try { sessionStorage.setItem("compare", JSON.stringify({ on: cmp.on, show: cmp.show, picked: cmp.picked })); } catch {} };
+const timeOfDay = (iso) => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`; };
+
+const drawBefore = () => {
+  if (!cmp.on || !cmp.film) return;
+  const at = cmp.film.fromSource(toSource(t));
+  cmp.film.draw(at);
+  $("clockB").textContent = stamp(at);
+};
+const applyShow = () => {
+  const v = $("view");
+  v.classList.toggle("cmp", cmp.on);
+  v.classList.toggle("showBefore", cmp.on && cmp.show !== "after");
+  v.classList.toggle("showAfter", !cmp.on || cmp.show !== "before");
+  $("cmpB").classList.toggle("on", cmp.on);
+  $("cmpBar").hidden = !cmp.on;
+  $("bAfter").style.display = cmp.on ? "block" : "none";
+  $("cmpFlip").textContent = cmp.show === "both" ? "Bật qua lại" : cmp.show === "before" ? "Đang xem: TRƯỚC" : "Đang xem: SAU";
+  fit();
+  dirty = true;
+};
+const loadBeforeFrame = () => {
+  const frame = $("beforeFrame"), want = cmp.on && cmp.before ? `/before/${cmp.before}/?w=${canvas.width}&h=${canvas.height}` : "";
+  if (frame.dataset.want === want) return;
+  frame.dataset.want = want;
+  cmp.film = null;
+  $("beforeLoad").textContent = want ? "đang dựng bản trước…" : cmp.on ? "Chưa có bản cũ để so" : "";
+  if (want) frame.src = want; else frame.removeAttribute("src");
+};
+addEventListener("message", (e) => {
+  if (e.source !== $("beforeFrame").contentWindow) return;
+  if (e.data.filmError) { $("beforeLoad").textContent = `Không dựng được bản này: ${e.data.filmError.slice(0, 200)}`; return; }
+  if (!e.data.filmReady) return;
+  cmp.film = e.source.__film;
+  $("beforeLoad").textContent = "";
+  dirty = true;
+});
+
+// Everything known so far as one list: picture ranges with the edits that explain them, then edits and sound on their own
+const cmpEmptyWords = () => (!cmp.before ? "Chưa có bản cũ để so: phim đổi lần tới thì có" : cmp.before === cmp.current ? "Đây là cùng một bản" : !cmp.result ? "Đang so…" : cmp.result.picture.state === "running" ? "Đang dò, chưa thấy gì đổi" : "Không thấy gì đổi");
+const buildChanges = () => {
+  const r = cmp.result;
+  if (!r) { changes = []; return; }
+  const list = r.picture.ranges.map((x) => ({ from: x.from, to: x.to, kind: "picture", title: x.whole ? "Cả khung hình đổi" : "Một phần hình đổi", lines: [] }));
+  for (const e of r.edits) {
+    const near = e.at === null ? null : list.find((c) => c.kind === "picture" && e.at >= c.from - 1 && e.at <= c.to + 1);
+    if (near) near.lines.push(e.text);
+    else list.push({ from: e.at, to: e.at, kind: "edit", title: "Sửa trong edit.json", lines: [e.text] });
+  }
+  for (const s of r.sound) list.push({ from: s.from, to: s.to, kind: "sound", title: "Tiếng đổi", lines: [] });
+  if (r.code) list.push({ from: null, to: null, kind: "edit", title: "Code phim đổi", lines: ["Chỗ nào code làm đổi hình thì nằm ở danh sách hình phía trên"] });
+  if (r.assets.length) list.push({ from: null, to: null, kind: "edit", title: "File đổi (ảnh, model, tiếng)", lines: [`Bản TRƯỚC đang hiện bằng file mới, nên chỗ này không so được: ${r.assets.slice(0, 5).join(", ")}${r.assets.length > 5 ? ` và ${r.assets.length - 5} file nữa` : ""}`] });
+  changes = list.sort((a, b) => (a.from ?? -1) - (b.from ?? -1));
+};
+const changeCard = (c) => {
+  const d = document.createElement("div");
+  d.className = "note change";
+  const head = document.createElement("div"); head.className = "h";
+  if (c.from !== null) {
+    const time = document.createElement("button"); time.className = "time"; time.textContent = stamp(c.from);
+    head.append(time);
+    d.dataset.from = c.from; d.dataset.to = c.to;
+    d.onclick = () => seek(c.from);
+  }
+  const kind = document.createElement("span"); kind.className = `kind ${c.kind}`; kind.textContent = c.title;
+  head.append(kind);
+  d.append(head);
+  if (c.to > c.from + 0.01) { const s = document.createElement("small"); s.textContent = `đến ${stamp(c.to)}`; d.append(s); }
+  for (const l of c.lines) { const s = document.createElement("small"); s.textContent = l; d.append(s); }
+  return d;
+};
+let nowChange = null;
+const followChanges = () => {
+  drawChangeBoxes();
+  if (noteTab !== "diff") return;
+  let near = null;
+  for (const el of $("list").children) if (el.dataset.from && t >= el.dataset.from - 0.02 && t <= Number(el.dataset.to) + 0.2) { near = el; break; }
+  if (near === nowChange) return;
+  nowChange?.classList.remove("now");
+  nowChange = near;
+  near?.classList.add("now");
+  if (near && performance.now() - listTouched >= HOLD_LIST) near.scrollIntoView({ block: "nearest" });
+};
+// The samples are 5 frames apart at best: the nearest one stands for the frames around it
+const drawChangeBoxes = () => {
+  const A = $("boxesA"), B = $("boxesB");
+  const rows = cmp.on ? cmp.result?.picture.rows ?? [] : [];
+  const f = t * FPS;
+  let hit = null, best = 8;
+  let lo = 0, hi = rows.length - 1;
+  while (lo <= hi) {
+    const m = (lo + hi) >> 1, d = rows[m][0] - f;
+    if (Math.abs(d) < best) { best = Math.abs(d); hit = rows[m]; }
+    if (d < 0) lo = m + 1; else hi = m - 1;
+  }
+  if (hit === drawChangeBoxes.last) return;
+  drawChangeBoxes.last = hit;
+  for (const box of [A, B]) {
+    box.replaceChildren();
+    if (!hit) continue;
+    if (hit[1]) { const w = document.createElement("div"); w.className = "cmpWhole"; w.textContent = "cả khung hình đổi"; box.append(w); continue; }
+    for (const [x0, y0, x1, y1] of hit[2]) { const i = document.createElement("i"); i.style.cssText = `left:${x0 * 100}%;top:${y0 * 100}%;width:${(x1 - x0) * 100}%;height:${(y1 - y0) * 100}%`; box.append(i); }
+  }
+};
+const showStatus = () => {
+  const r = cmp.result, p = r?.picture;
+  let words = "";
+  if (!cmp.before) words = "Chưa có bản cũ";
+  else if (!r) words = "đang so…";
+  else {
+    if (p.state === "running") words = `đang dò hình ${p.total ? Math.floor((p.done / p.total) * 100) : 0}%, `;
+    else if (p.state === "no-chrome") words = "không có Chrome để dò hình, chỉ báo theo edit.json, ";
+    else if (p.state === "failed") words = `dò hình lỗi: ${p.failed}, `;
+    const seekable = changes.filter((c) => c.from !== null).length;
+    words += seekable ? `${seekable} chỗ đổi` : p.state === "running" ? "chưa thấy gì đổi" : "không thấy gì đổi";
+  }
+  $("cmpStatus").textContent = words;
+};
+const badgeCount = () => {
+  const n = changes.filter((c) => c.from !== null).length;
+  const b = $("cmpB");
+  b.querySelector("em")?.remove();
+  if (n) { const e = document.createElement("em"); e.textContent = n; b.append(e); }
+};
+let compareAsked = 0;
+const loadCompare = async () => {
+  const mine = ++compareAsked;
+  if (!cmp.before || !cmp.current || cmp.before === cmp.current) { cmp.result = null; buildChanges(); showStatus(); badgeCount(); listNotes(); drawTimelines(); return; }
+  const r = await fetch(`/compare/${cmp.before}/${cmp.current}`);
+  if (!r.ok || mine !== compareAsked) return;
+  cmp.result = await r.json();
+  drawChangeBoxes.last = undefined;
+  buildChanges(); showStatus(); badgeCount(); listTabDiff();
+  if (noteTab === "diff") listNotes();
+  drawTimelines();
+  dirty = true;
+};
+const loadCompareSoon = () => { if (loadCompareSoon.h) return; loadCompareSoon.h = setTimeout(() => { loadCompareSoon.h = 0; loadCompare(); }, 1000); };
+const fillWhich = () => {
+  const s = $("cmpWhich");
+  const older = cmp.versions.filter((v) => v.id !== cmp.current).reverse();
+  s.replaceChildren(...older.map((v) => { const o = document.createElement("option"); o.value = v.id; o.textContent = `${timeOfDay(v.at)}${v.id === cmp.autoBefore ? ", xem lần cuối" : ""}`; return o; }));
+  s.value = cmp.before ?? "";
+};
+const loadVersions = async () => {
+  const r = await fetch("/versions.json").catch(() => null);
+  if (!r?.ok || (await r.clone().text()).startsWith("<")) return; // a copy with no server behind it, such as a shared view: no comparing there
+  const v = await r.json();
+  $("cmpB").hidden = false;
+  cmp.current = v.current; cmp.seen = v.seen; cmp.versions = v.versions; cmp.autoBefore = v.before;
+  if (cmp.picked && !v.versions.some((x) => x.id === cmp.picked)) cmp.picked = null;
+  cmp.before = cmp.picked ?? v.before;
+  fillWhich();
+  applyShow();
+  loadBeforeFrame();
+  await loadCompare();
+};
+const setCompare = (on) => {
+  cmp.on = on;
+  if (on && noteTab !== "diff") showTab("diff");
+  if (!on && noteTab === "diff") showTab("open");
+  keepCompare();
+  applyShow();
+  loadBeforeFrame();
+  drawChangeBoxes.last = undefined;
+  drawChangeBoxes();
+};
+const flipCompare = () => {
+  cmp.show = cmp.show === "before" ? "after" : cmp.show === "after" && !SMALL_SCREEN ? "both" : "before";
+  keepCompare();
+  applyShow();
+};
+const nextChange = (d) => {
+  const stops = changes.filter((c) => c.from !== null).map((c) => c.from);
+  const to = d > 0 ? stops.find((s) => s > t + 0.05) : stops.findLast((s) => s < t - 0.05);
+  if (to === undefined) { flash(d > 0 ? "hết chỗ đổi" : "đây là chỗ đổi đầu tiên"); return; }
+  if (playing) setPlaying(false);
+  seek(to);
+};
+$("cmpB").onclick = () => setCompare(!cmp.on);
+$("cmpFlip").onclick = flipCompare;
+$("cmpPrev").onclick = () => nextChange(-1);
+$("cmpNext").onclick = () => nextChange(1);
+$("cmpWhich").onchange = () => { cmp.picked = $("cmpWhich").value === cmp.autoBefore ? null : $("cmpWhich").value; cmp.before = $("cmpWhich").value; keepCompare(); loadBeforeFrame(); loadCompare(); };
+// Using the page is what makes this version one that was watched. Opening it isn't, or a page left open would swallow every change an AI makes
+const markSeen = () => { if (cmp.current && markSeen.sent !== cmp.current) { markSeen.sent = cmp.current; jsonPost("/seen", { id: cmp.current }).catch(() => { markSeen.sent = null; }); } };
+for (const ev of ["pointerdown", "keydown"]) addEventListener(ev, markSeen, { passive: true });
 
 // ---------- Buttons and keys
 $("play").onclick = () => { setPlaying(!playing); if (!playing && reloadWaiting) { sessionStorage.setItem("t", t); location.reload(); } };
@@ -1085,6 +1294,7 @@ text.addEventListener("keydown", (e) => {
 });
 $("tabOpen").onclick = () => showTab("open");
 $("tabHist").onclick = () => showTab("history");
+$("tabDiff").onclick = () => showTab("diff");
 $("moreB").onclick = () => { const open = $("more").classList.toggle("open"); $("moreB").classList.toggle("on", open); $("moreB").setAttribute("aria-expanded", open); };
 // A button keeps the keyboard's focus after a click, and Space would then press it on top of playing
 $("row").addEventListener("click", (e) => e.target.blur?.());
@@ -1102,6 +1312,10 @@ addEventListener("keydown", (e) => {
   else if ((k === "g" || k === "G") && !AWAY) setFinal(!finalOn);
   else if (k === "l" || k === "L") setLoop(!looping);
   else if (k === "m" || k === "M") toggleMute();
+  else if ((k === "b" || k === "B") && !$("cmpB").hidden) setCompare(!cmp.on);
+  else if ((k === "v" || k === "V") && cmp.on) flipCompare();
+  else if ((k === "z" || k === "Z") && changes.length) nextChange(-1);
+  else if ((k === "x" || k === "X") && changes.length) nextChange(1);
   else if (k === "-") setFov(2);
   else if (k === "=") setFov(-2);
   else if (k >= "0" && k <= "9") chooseOption(Number(k));
@@ -1117,6 +1331,8 @@ events.addEventListener("error-build", (e) => showError(JSON.parse(e.data)));
 events.addEventListener("sound-start", () => { flash("đang trộn tiếng…"); });
 events.addEventListener("sound", () => { loadMix(); loadTrials(); flash("tiếng đã cập nhật"); });
 events.addEventListener("notes", loadNotes);
+events.addEventListener("versions", () => loadVersions());
+events.addEventListener("compare", (e) => { const d = JSON.parse(e.data); if (d.a === cmp.before && d.b === cmp.current) loadCompareSoon(); });
 events.addEventListener("voice", loadVoice);
 events.addEventListener("edit", async () => { const fresh = await (await fetch("/edit.json")).json(); if (JSON.stringify(fresh) !== snapshotEdit()) { setEdit(fresh); refreshTimes(); } });
 if (!AWAY) audio.src = MIX_URL; // on a phone line the room comes first, or the sound eats the bandwidth while the picture stays black

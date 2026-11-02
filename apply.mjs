@@ -8,7 +8,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const STUDIO = ["src/live.mjs", "src/live_page.ts", "src/studio.html", "src/edit.ts", "notes_report.py"];
+const STUDIO = ["src/live.mjs", "src/live_page.ts", "src/studio.html", "src/edit.ts", "src/versions.mjs", "src/compare_view.ts", "src/compare_job.html", "notes_report.py"];
 // A film's own parts: the demo's versions are only a starting point, and are never written over anything
 const STARTER = [".gitignore", "package.json", "src/scene.ts", "src/edit.json", "src/timing.ts", "voice_map.py", "voice_edit.py", "sound.py", "make_lite.py", "assets/public/agent/full_voice.wav", "assets/public/agent/sfx2/.gitkeep", "assets/public/agent/sfx_try/.gitkeep"];
 const MANIFEST = ".live-studio.json";

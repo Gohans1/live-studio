@@ -112,6 +112,11 @@ def detail(n, cam):
             print(words)
     if n.get("version"):
         print(f"said about version: {n['version']}")
+    if n.get("film"):
+        print(f"film version: {n['film']} (renders/versions/index.json)")
+    compare = n.get("context", {}).get("compare")
+    if compare:
+        print(f"said while comparing with version {compare['before']}, showing {compare['show']}")
     for fix in n.get("fixes", []):
         print(f"tried: {fix['what']} ({fix['checkpoint']})")
     if cam and n.get("cam"):
