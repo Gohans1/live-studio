@@ -18,4 +18,4 @@ import { fromSource, toSource } from "film/edit";
     step();
   }
   parent.postMessage({ filmReady: true }, "*");
-})().catch((e) => parent.postMessage({ filmError: String(e?.stack ?? e) }, "*"));
+})().catch((e) => parent.postMessage({ filmError: e?.message ?? `không tải được ${e?.target?.src ?? "file"}` }, "*"));

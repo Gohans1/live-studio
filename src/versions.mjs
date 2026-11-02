@@ -8,6 +8,7 @@ import { dirname, join, relative } from "node:path";
 
 const KEEP = 30;
 const RANGE_GAP = 1; // seconds
+const CUE_LENGTH = 0.5; // a mark needs some width to be seen and jumped to
 const hash = (data) => createHash("md5").update(data).digest("hex").slice(0, 12);
 const ENVELOPE_STEP = 0.05, SOUND_LIMIT = 0.001, SOUND_GAP = 0.5;
 const JOB_LIMIT = 15 * 60e3;
@@ -127,6 +128,7 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
   for (const n of readdirSync(ROOT)) if (n.startsWith("chrome_")) rmSync(join(ROOT, n), { recursive: true, force: true }); // left by a studio that was killed
   const failures = new Map(); // for this run only: restarting the studio tries a failed pair again, from where it stopped
   const crashes = new Map();
+  const wanted = []; // pairs a page still waits on while another runs: only one Chrome at a time
 
   const saveIndex = () => {
     const fresh = `${INDEX}.new`;
@@ -198,6 +200,19 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
   const changed = () => { clearTimeout(timer); timer = setTimeout(() => { try { snapshot(); } catch (e) { console.log("versions: trying again:", e.message); changed(); } }, 1500); };
 
   const readEdit = (v) => JSON.parse(readFileSync(join(EDITS, `${v.edit}.json`), "utf8"));
+  // The live mix leaves out the sounds tied to actions, the page plays those itself, so a moved one only shows in edit.json.
+  // Same voice second on both sides: re-pacing the voice carries them along and isn't a change
+  const cueRanges = (editA, editB, warpB) => {
+    const cues = (e) => new Map(Object.values(e.beats ?? {}).flatMap((m) => (m.sounds ?? []).map(([off, name, v]) => { const at = m.at + off; return [`${at.toFixed(3)}|${name}|${v}`, at]; })));
+    const ca = cues(editA), cb = cues(editB);
+    const moved = [...[...ca].filter(([k]) => !cb.has(k)), ...[...cb].filter(([k]) => !ca.has(k))];
+    return moved.map(([, at]) => mapTime(warpB, at, 0, 1)).map((t) => ({ from: t, to: t + CUE_LENGTH }));
+  };
+  const mergeRanges = (list) => {
+    const out = [];
+    for (const r of list.toSorted((p, q) => p.from - q.from)) { const last = out.at(-1); if (last && r.from - last.to <= SOUND_GAP) last.to = Math.max(last.to, r.to); else out.push({ ...r }); }
+    return out;
+  };
   const soundRanges = (a, b, warpA, warpB) => {
     if (!a.mix || !b.mix || a.mix === b.mix) return [];
     const load = (v) => { const raw = readFileSync(join(SOUNDS, `${v.mix}.f32`)); return new Float32Array(raw.buffer, raw.byteOffset, raw.length / 4); };
@@ -237,6 +252,7 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
   };
   const startJob = (a, b) => {
     if (job?.a === a && job?.b === b) return true;
+    if (job && job.b === current() && !wanted.some((w) => w[0] === job.a && w[1] === job.b)) wanted.unshift([job.a, job.b]);
     stopJob();
     const chrome = chromePath();
     if (!chrome) return false;
@@ -255,13 +271,19 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
       job = null;
       const n = (crashes.get(key) ?? 0) + 1;
       crashes.set(key, n);
-      if (n > 2) { fail("Chrome cứ tắt giữa chừng, bật lại studio để dò tiếp"); return; }
+      if (n > 2) { fail("Chrome cứ tắt giữa chừng, bật lại studio để dò tiếp"); nextJob(); return; }
       console.log("compare: Chrome closed, going on");
-      setTimeout(() => startJob(a, b), 1000);
+      setTimeout(() => { if (!job) startJob(a, b); }, 1000);
     });
     return true;
   };
 
+  const nextJob = () => {
+    while (wanted.length && !job) {
+      const [a, b] = wanted.shift();
+      if (find(a) && find(b) && b === current() && !readRows(a, b).done && !failures.has(`${a}_${b}`)) startJob(a, b);
+    }
+  };
   const compareResult = (a, b) => {
     const A = find(a), B = find(b), editA = readEdit(A), editB = readEdit(B);
     const warpB = editB.voice?.warp, warpA = editA.voice?.warp;
@@ -282,7 +304,7 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
       if (open && r.f / 30 - open.to <= RANGE_GAP) { open.to = r.f / 30; open.whole ||= !!r.w; } else { open = { from: r.f / 30, to: r.f / 30, whole: !!r.w }; ranges.push(open); }
     }
     return {
-      a, b, atA: A.at, atB: B.at, edits, code: A.code !== B.code, sound: soundRanges(A, B, warpA, warpB), assets: assetChanges(A, B),
+      a, b, atA: A.at, atB: B.at, edits, code: A.code !== B.code, sound: mergeRanges([...soundRanges(A, B, warpA, warpB), ...cueRanges(editA, editB, warpB)]), assets: assetChanges(A, B),
       picture: { state, failed, done: rows.length, total, ranges, rows: sorted.filter((r) => r.n).map((r) => [r.f, r.w ? 1 : 0, r.b ?? []]) },
     };
   };
@@ -313,7 +335,7 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
       res.setHeader("cache-control", "max-age=31536000");
       if (before[2] === "view.js") { res.setHeader("content-type", "text/javascript"); res.end(readFileSync(join(CODE, `${v.code}.js`))); }
       else if (before[2] === "edit.json") { res.setHeader("content-type", "application/json"); res.end(readFileSync(join(EDITS, `${v.edit}.json`))); }
-      else { res.setHeader("content-type", "text/html; charset=utf-8"); res.end('<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100%;height:100%}</style><canvas id="gl"></canvas><script>for(const k of["error","unhandledrejection"])addEventListener(k,e=>parent.postMessage({filmError:String(e.message??e.reason)},"*"))</script><script type="module" src="view.js"></script>'); }
+      else { res.setHeader("content-type", "text/html; charset=utf-8"); res.end('<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100%;height:100%}</style><canvas id="gl"></canvas><script>addEventListener("error",e=>parent.postMessage({filmError:e.message},"*"))</script><script type="module" src="view.js"></script>'); }
       return true;
     }
     const pair = /^\/compare(-job)?\/([0-9a-f]+)\/([0-9a-f]+)(?:\/(done|rows|start|finish|fail))?$/.exec(url);
@@ -328,9 +350,16 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
     if (step === "start") appendFileSync(file, JSON.stringify({ total: data.total }) + "\n");
     if (step === "rows") appendFileSync(file, data.map((r) => JSON.stringify(r) + "\n").join(""));
     if (step === "finish") appendFileSync(file, '{"done":true}\n');
-    if (step === "fail") failures.set(`${a}_${b}`, String(data.message).slice(0, 300));
     send("compare", { a, b });
-    if (step === "finish" || step === "fail") { if (job?.a === a && job?.b === b) stopJob(); }
+    if (step === "finish" && job?.a === a && job?.b === b) { stopJob(); nextJob(); }
+    // Only the job running now counts: one just stopped for another pair can report the failures of its own stopping.
+    // A file that failed to load may load next time, a film that throws will say so again
+    if (step === "fail" && job?.a === a && job?.b === b) {
+      stopJob();
+      const key = `${a}_${b}`, n = (crashes.get(key) ?? 0) + 1;
+      crashes.set(key, n);
+      if (n > 2) { failures.set(key, String(data.message).slice(0, 300)); send("compare", { a, b }); nextJob(); } else setTimeout(() => { if (!job) startJob(a, b); }, 1000);
+    }
     res.end("ok");
     return true;
   };
