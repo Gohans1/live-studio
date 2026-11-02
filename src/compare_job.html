@@ -82,7 +82,7 @@ try {
   await post("finish", {});
 } catch (e) {
   // Failing to report means the studio is gone: leave no Chrome behind
-  await post("fail", { message: e?.stack ?? String(e) }).catch(() => {});
+  await post("fail", { message: e?.message ?? String(e) }).catch(() => {});
   window.close();
 }
 </script>
