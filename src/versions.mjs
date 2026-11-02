@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { constants as osConstants, setPriority } from "node:os";
+import { readdir, stat } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import { gzipSync } from "node:zlib";
 
@@ -15,6 +16,7 @@ const hash = (data) => createHash("md5").update(data).digest("hex").slice(0, 12)
 const ENVELOPE_STEP = 0.05, SOUND_LIMIT = 0.001, SOUND_GAP = 0.5;
 const PACED_MARGIN = 0.3, PACED_LIMIT = 0.002, PACED_RUN = 2; // tuned on a real voice mix, see the comment in soundRanges
 const JOB_LIMIT = 15 * 60e3;
+const START_LIMIT = 120e3; // loading both versions of a long film on a slow disk took 40s
 const SCAN_QUIET = 8e3; // a scan takes a Chrome 12s to get going and pegs the machine: while an AI is still saving, the result would be thrown away anyway
 const MAX_BODY = 20 * 1024 * 1024;
 const SOUND_FILE = /\.(wav|mp3|ogg|opus|flac|m4a|aac|webm)$/i;
@@ -191,6 +193,22 @@ export const parseRows = (text) => {
   return { rows, total, done, ends };
 };
 
+// Every file's size and time, in a fixed order. Follows junctions, which is why nothing cheaper will do: a film's assets are mostly behind them, and fs.watch sees nothing there.
+// Async, because thousands of files on a slow disk would otherwise hold up every request for a second
+export const stampAssets = async (dir) => {
+  const map = {};
+  const go = async (d) => {
+    let names = [];
+    try { names = await readdir(d); } catch { return; }
+    await Promise.all(names.map(async (n) => {
+      const p = join(d, n);
+      try { const s = await stat(p); if (s.isDirectory()) await go(p); else map[relative(dir, p).replace(/\\/g, "/")] = `${s.size}:${Math.round(s.mtimeMs)}`; } catch {} // gone since it was listed
+    }));
+  };
+  await go(dir);
+  return Object.fromEntries(Object.entries(map).sort(([p], [q]) => (p < q ? -1 : 1)));
+};
+
 export const readJson = (req) => new Promise((ok, no) => { const parts = []; let size = 0; req.on("data", (d) => { size += d.length; if (size > MAX_BODY) { no(new Error("request too large")); req.destroy(); } else parts.push(d); }); req.on("end", () => { try { ok(JSON.parse(Buffer.concat(parts).toString("utf8"))); } catch (e) { no(e); } }); req.on("error", no); });
 
 export const createVersions = ({ project, here, alias, plugins, port, send, esbuild, squeeze, mixFile, editFile, assetsDir }) => {
@@ -200,7 +218,7 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
   const INDEX = join(ROOT, "index.json");
   let index = { versions: [], seen: null, base: null };
   try { index = { ...index, ...JSON.parse(readFileSync(INDEX, "utf8")) }; } catch {}
-  let code = null, job = null, timer = null, mixSeen = {}, retries = 0, assetStamps = null, lastChange = 0, quietTimer = null;
+  let code = null, job = null, timer = null, mixSeen = {}, retries = 0, snapshotting = false, lastChange = 0, quietTimer = null;
   const removeProfile = (dir) => { try { rmSync(dir, { recursive: true, force: true }); } catch {} }; // a Chrome just killed can still hold it: the next start clears it
   const sweepProfiles = () => { for (const n of readdirSync(ROOT)) if (n.startsWith("chrome_")) removeProfile(join(ROOT, n)); }; // left by a killed studio or a Chrome still closing: tens of MB each
   sweepProfiles();
@@ -221,13 +239,6 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
   // Once the current version has been watched, the one watched before it stays the comparison until the film changes again
   const beforeId = () => pickBefore(index);
 
-  const stampAssets = (dir) => {
-    const map = {};
-    const go = (d) => { for (const n of readdirSync(d)) { const p = join(d, n), s = statSync(p); if (s.isDirectory()) go(p); else map[relative(dir, p).replace(/\\/g, "/")] = `${s.size}:${Math.round(s.mtimeMs)}`; } };
-    try { go(dir); } catch {}
-    return map;
-  };
-
   const prune = () => {
     index.versions = trimVersions(index.versions, new Set([index.seen, index.base]));
     const live = (key) => new Set(index.versions.map((v) => v[key]));
@@ -239,8 +250,9 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
     for (const f of readdirSync(COMPARES)) { const [a, b] = f.replace(".jsonl", "").split("_"); if (!ids.has(a) || !ids.has(b)) rmSync(join(COMPARES, f), { force: true }); }
   };
 
-  const snapshot = () => {
+  const snapshot = async () => {
     if (!code) return;
+    const stamps = JSON.stringify(await stampAssets(assetsDir)), assetsId = hash(stamps); // first: everything after this happens in one go
     let edit;
     try { edit = JSON.stringify(JSON.parse(readFileSync(editFile, "utf8"))); } catch { return; } // caught mid-save: the next change event brings it
     const codeId = hash(code), editId = hash(edit);
@@ -253,9 +265,6 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
       const f = join(SOUNDS, `${mixId}.f32`);
       if (!existsSync(f)) { const e = envelopeOf(mixFile); writeFileSync(f, Buffer.from(e.buffer, e.byteOffset, e.byteLength)); }
     }
-    // Thousands of files on a slow disk take a second and hold up every request, so they're only walked when something there moved
-    assetStamps ??= JSON.stringify(stampAssets(assetsDir));
-    const stamps = assetStamps, assetsId = hash(stamps);
     const id = hash([codeId, editId, mixId, assetsId].join());
     if (current() === id) return;
     writeFileSync(join(CODE, `${codeId}.js`), code);
@@ -271,7 +280,12 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
   };
   // Saves come in bursts while an AI works, and one round of fixes is one thing to compare
   // The mix can be half written or locked when this runs: the next look finds it whole
-  const changed = () => { clearTimeout(timer); timer = setTimeout(() => { try { snapshot(); retries = 0; } catch (e) { console.log("versions: trying again:", e.message); if (++retries < 20) changed(); } }, 1500); };
+  const changed = () => { clearTimeout(timer); timer = setTimeout(async () => {
+    if (snapshotting) { changed(); return; }
+    snapshotting = true;
+    try { await snapshot(); retries = 0; } catch (e) { console.log("versions: trying again:", e.message); if (++retries < 20) changed(); }
+    snapshotting = false;
+  }, 1500); };
 
   const readEdit = (v) => JSON.parse(readFileSync(join(EDITS, `${v.edit}.json`), "utf8"));
   const mergeRanges = (list) => {
@@ -313,6 +327,7 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
     const fail = (message) => { failures.set(key, message); send("compare", { a, b }); };
     const mine = { a, b, proc, limit: setTimeout(() => { if (job === mine) { stopJob(); fail("quá lâu, bật lại studio để dò tiếp"); nextJob(); } }, JOB_LIMIT) };
     job = mine;
+    setTimeout(() => { if (job === mine && !mine.started) { stopJob(); fail("Chrome không chạy được, bật lại studio để thử lại"); nextJob(); } }, START_LIMIT);
     proc.on("error", (e) => { if (job !== mine) return; clearTimeout(mine.limit); job = null; fail(`không mở được Chrome: ${e.message}`); nextJob(); });
     // Closing by itself means it crashed: what it found is saved, so go on from there, but don't loop on a crash that keeps happening
     proc.on("close", () => {
@@ -422,6 +437,7 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
     if (step === "done") { json(req, res, readRows(a, b).rows.map((r) => r.f)); return true; }
     const data = await readJson(req);
     const file = compareFile(a, b);
+    if (step === "start" && job?.a === a && job?.b === b) job.started = true;
     if (step === "start") appendFileSync(file, JSON.stringify({ total: data.total, ends: data.ends }) + "\n");
     if (step === "rows") appendFileSync(file, data.map((r) => JSON.stringify(r) + "\n").join(""));
     if (step === "finish") appendFileSync(file, '{"done":true}\n');
@@ -451,5 +467,5 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
     await ctx.watch();
   };
 
-  return { route, changed, start, current, assetsMoved: () => { assetStamps = null; changed(); } };
+  return { route, changed, start, current };
 };

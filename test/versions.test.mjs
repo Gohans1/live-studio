@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { request } from "node:http";
 import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { cueRanges, describeEdit, envelopeOf, parseRows, pickBefore, soundRanges, trimVersions } from "../src/versions.mjs";
+import { cueRanges, describeEdit, envelopeOf, parseRows, pickBefore, soundRanges, stampAssets, trimVersions } from "../src/versions.mjs";
 
 const RATE = 8000;
 // Speech-like: bursts of noise with pauses, the same every run
@@ -118,6 +118,20 @@ test("a scan's saved results survive a line cut off when it was stopped", () => 
   assert.deepEqual(rows.map((r) => r.f), [0, 5]);
   assert.equal(total, 9);
   assert.equal(done, false);
+});
+
+test("a changed file behind a junction changes the assets' stamp, and the same files always stamp the same", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "studio-test-")), real = join(dir, "real"), assets = join(dir, "assets");
+  try {
+    mkdirSync(real); mkdirSync(assets);
+    for (const n of ["b.png", "a.png", "c.png"]) writeFileSync(join(real, n), "x");
+    symlinkSync(real, join(assets, "linked"), "junction");
+    const first = JSON.stringify(await stampAssets(assets));
+    assert.deepEqual(Object.keys(JSON.parse(first)), ["linked/a.png", "linked/b.png", "linked/c.png"]);
+    assert.equal(JSON.stringify(await stampAssets(assets)), first);
+    writeFileSync(join(real, "b.png"), "longer");
+    assert.notEqual(JSON.stringify(await stampAssets(assets)), first);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));

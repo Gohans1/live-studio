@@ -1,6 +1,6 @@
 // Live viewer: node src/live.mjs [port], then open http://localhost:4321
 // Saving scene.ts or anything it imports reloads the picture at the same second; saving sound.py or an audio file remixes.
-import { execFileSync, spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { appendFileSync, copyFileSync, createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, watch, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { brotliCompressSync, constants as zlibConsts, gzipSync } from "node:zlib";
@@ -186,7 +186,7 @@ const handle = async (req, res) => {
         writeFileSync(join(NOTE_IMG, `${note.id}_${kind}.jpg`), Buffer.from(pic.split(",")[1], "base64"));
       }
       // Which version of the film this was said about
-      try { note.version = execFileSync("git", ["describe", "--tags", "--always", "--dirty"], { cwd: PROJECT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch {}
+      note.version = await new Promise((done) => { execFile("git", ["describe", "--tags", "--always", "--dirty"], { cwd: PROJECT, encoding: "utf8" }, (e, out) => done(e ? undefined : out.trim())); });
       note.film = versions.current() ?? undefined; // works without git too: renders/versions/index.json says what this version was
       const all = readNotes();
       if (!all.some((n) => n.id === note.id)) writeNotes([...all, note]); // a retry after a lost answer isn't a second note
@@ -323,7 +323,8 @@ if (existsSync(VOICE)) {
   if (!existsSync(VOICE_MAP) || statSync(VOICE_MAP).mtimeMs < statSync(VOICE).mtimeMs) mapVoice();
 }
 if (!existsSync(LITE)) spawn(PYTHON, ["make_lite.py"], { cwd: PROJECT, stdio: "inherit" });
-if (existsSync(PUBLIC)) watch(PUBLIC, { recursive: true }, debounce(() => versions.assetsMoved(), 500));
+// Asset files can change where no watcher sees them: looked at while someone is watching, so a page knows soon enough
+setInterval(() => { if (clients.size) versions.changed(); }, 30e3);
 watch(NOTES, debounce(() => send("notes"), 100)); // Claude ticking a note off shows up here too
 watch(join(here, "studio.html"), debounce(() => send("code"), 100));
 // Voice edits are made in the file: the voice and the mix follow it
@@ -343,7 +344,12 @@ const notify = {
   name: "notify",
   setup(b) {
     b.onEnd((r) => {
-      if (r.errors.length) { const m = r.errors.map((e) => `${e.location?.file}:${e.location?.line} ${e.text}`).join("\n"); console.log(m); send("error-build", m); if (!bundle) bundle = `throw new Error(${JSON.stringify(m)})`; } else { bundle = r.outputFiles[0].contents; send("code"); console.log("built"); }
+      if (r.errors.length) { const m = r.errors.map((e) => `${e.location?.file}:${e.location?.line} ${e.text}`).join("\n"); console.log(m); send("error-build", m); if (!bundle) bundle = `throw new Error(${JSON.stringify(m)})`; } else {
+        const fresh = r.outputFiles[0].contents, same = bundle && !(typeof bundle === "string") && Buffer.compare(bundle, fresh) === 0; // a comment saved changes nothing: no reason to reload the page
+        bundle = fresh;
+        if (!same) send("code");
+        console.log("built");
+      }
     });
   },
 };
