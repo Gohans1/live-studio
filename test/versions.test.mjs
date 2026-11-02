@@ -3,7 +3,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { request } from "node:http";
+import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { cueRanges, describeEdit, envelopeOf, parseRows, pickBefore, soundRanges, trimVersions } from "../src/versions.mjs";
 
@@ -121,6 +122,8 @@ test("a scan's saved results survive a line cut off when it was stopped", () => 
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
 
+// Runs from a clone of the last commit: a mistake here would otherwise delete this checkout's own files
+
 test("init refuses to remove a project's own changes, and refuses the studio itself", () => {
   const dir = mkdtempSync(join(tmpdir(), "studio-test-")), film = join(dir, "film"), clone = join(dir, "studio");
   try {
@@ -136,22 +139,42 @@ test("init refuses to remove a project's own changes, and refuses the studio its
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("the server reads nothing outside the film, refuses other sites, and survives bad requests", async (t) => {
-  const port = 4499, server = spawn("node", ["src/live.mjs", String(port)], { cwd: REPO, env: { ...process.env, LIVE_PROJECT: join(REPO, "demo") } });
-  t.after(() => server.kill());
-  await new Promise((ok, no) => { server.stdout.on("data", (d) => { if (String(d).includes("live at")) ok(); }); server.on("close", () => no(new Error("the studio did not start"))); setTimeout(() => no(new Error("the studio did not start in time")), 60e3); });
-  const http = await import("node:http");
+describe("the server", () => {
+  const port = 4499;
+  let server;
+  before(async () => {
+    server = spawn("node", ["src/live.mjs", String(port)], { cwd: REPO, env: { ...process.env, LIVE_PROJECT: join(REPO, "demo") } });
+    await new Promise((ok, no) => { server.stdout.on("data", (d) => { if (String(d).includes("live at")) ok(); }); server.on("close", () => no(new Error("the studio did not start"))); setTimeout(() => no(new Error("the studio did not start in time")), 60e3); });
+  });
+  after(() => server.kill());
   // fetch normalizes paths and won't send a Host header: these have to go out as written
   const ask = (path, { method = "GET", headers = {}, body } = {}) => new Promise((ok, no) => {
-    const r = http.request({ port, path, method, headers: { host: `localhost:${port}`, ...headers } }, (res) => { res.resume(); ok(res.statusCode); });
+    const r = request({ port, path, method, headers: { host: `localhost:${port}`, ...headers } }, (res) => { res.resume(); ok(res); });
     r.on("error", no);
     r.end(body);
   });
-  for (const path of ["/../package.json", "/..%2f..%2f..%2fpackage.json", "/..%5c..%5c..%5cpackage.json", "/lite/..%2f..%2f..%2f..%2fpackage.json"]) assert.equal(await ask(path), 404, path);
-  assert.equal(await ask("/%"), 400);
-  assert.equal(await ask("/notes.json", { headers: { host: "evil.example.com" } }), 403);
-  assert.equal(await ask("/seen", { method: "POST", headers: { origin: "https://evil.example.com" }, body: "{}" }), 403);
-  await ask("/choose", { method: "POST", body: "not json" });
-  assert.equal(await ask("/mix.wav", { headers: { range: "bytes=999999999999-" } }), 416);
-  assert.equal(await ask("/notes.json"), 200);
+  const status = async (...a) => (await ask(...a)).statusCode;
+
+  test("reads nothing outside the film", async () => {
+    for (const path of ["/../package.json", "/..%2f..%2f..%2fpackage.json", "/..%5c..%5c..%5cpackage.json", "/lite/..%2f..%2f..%2f..%2fpackage.json"]) assert.equal(await status(path), 404, path);
+  });
+  test("refuses other sites", async () => {
+    assert.equal(await status("/notes.json", { headers: { host: "evil.example.com" } }), 403);
+    assert.equal(await status("/seen", { method: "POST", headers: { origin: "https://evil.example.com" }, body: "{}" }), 403);
+    const res = await ask("/notes.json");
+    assert.equal(res.headers["cross-origin-resource-policy"], "same-origin");
+    assert.match(res.headers["content-security-policy"], /frame-ancestors 'self'/);
+  });
+  test("answers bad requests and stays up", async () => {
+    assert.equal(await status("/%"), 400);
+    assert.equal(await status("/choose", { method: "POST", body: "not json" }), 400);
+    assert.equal(await status("/mix.wav", { headers: { range: "bytes=999999999999-" } }), 416);
+    assert.equal(await status("/notes.json"), 200);
+  });
+  test("refuses a note that isn't whole, or a picture that isn't one", async () => {
+    const send = (note, img) => status("/notes", { method: "POST", body: JSON.stringify({ note, img }) });
+    assert.equal(await send({ id: "testbad" }), 400);
+    assert.equal(await send({ id: ["testbad"], t: 1, text: "x" }), 400);
+    assert.equal(await send({ id: "testbad", t: 1, text: "x" }, "data:text/html;base64,PGh0bWw+"), 400);
+  });
 });

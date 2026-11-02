@@ -69,8 +69,9 @@ const setPlaying = (p) => {
   playing = p;
   $("playIcon").setAttribute("href", p ? "#i-pause" : "#i-play");
   $("playText").textContent = p ? "Dừng" : "Phát";
-  if (p) { clockStart = performance.now() - t * 1000; audio.currentTime = t; audio.play().catch(() => {}); ctx.resume(); } else { audio.pause(); seek(Math.round(t * FPS) / FPS); }
+  if (p) { clockStart = performance.now() - t * 1000; audio.currentTime = t; audio.play().catch(() => {}); ctx.resume(); } else { audio.pause(); seek(Math.round(t * FPS) / FPS); loadBeforeFrame(); }
 };
+window.__playing = () => playing;
 
 // ---------- The sound's source
 const setAudio = (url) => {
@@ -1008,7 +1009,7 @@ async function main() {
     if (dirty) {
       dirty = false;
       const a = performance.now();
-      render(t);
+      if (!cmp.on || cmp.show !== "before" || !cmp.film) render(t); // only the old version shows: nothing to draw on this side
       drawBefore();
       lastDraw = performance.now() - a;
       drawMs = drawMs * 0.9 + lastDraw * 0.1;
@@ -1093,8 +1094,11 @@ const applyShow = () => {
   dirty = true;
 };
 const loadBeforeFrame = () => {
-  const frame = $("beforeFrame"), want = cmp.on && cmp.before && cmp.show !== "after" ? `/before/${cmp.before}/?w=${canvas.width}&h=${canvas.height}` : "";
+  const frame = $("beforeFrame"), url = `/before/${cmp.before}/?w=${canvas.width}&h=${canvas.height}`;
+  // Built only once it's asked for, then kept: flipping back must be instant, and costs a scene's memory only while comparing
+  const want = cmp.on && cmp.before && (cmp.show !== "after" || frame.dataset.want === url) ? url : "";
   if (frame.dataset.want === want) return;
+  if (playing && want && frame.dataset.want) return; // building it holds up the film: the next pause picks this up
   frame.dataset.want = want;
   cmp.film = null;
   $("beforeLoad").textContent = want ? "đang dựng bản trước…" : cmp.on && !cmp.before ? "Chưa có bản cũ để so" : "";
@@ -1110,7 +1114,7 @@ addEventListener("message", (e) => {
 });
 
 // Everything known so far as one list: picture ranges with the edits that explain them, then edits and sound on their own
-const cmpEmptyWords = () => (!cmp.before ? "Chưa có bản cũ để so: phim đổi lần tới thì có" : cmp.before === cmp.current ? "Đây là cùng một bản" : !cmp.result ? "Đang so…" : cmp.result.picture.state === "running" ? "Đang dò, chưa thấy gì đổi" : cmp.result.picture.state === "failed" ? "Dò hình lỗi, chưa biết hình có đổi không" : "Không thấy gì đổi");
+const cmpEmptyWords = () => (!cmp.before ? "Chưa có bản cũ để so: phim đổi lần tới thì có" : cmp.before === cmp.current ? "Đây là cùng một bản" : !cmp.result ? "Đang so…" : ["running", "settling"].includes(cmp.result.picture.state) ? "Đang dò, chưa thấy gì đổi" : cmp.result.picture.state === "failed" ? "Dò hình lỗi, chưa biết hình có đổi không" : "Không thấy gì đổi");
 const buildChanges = () => {
   const r = cmp.result;
   if (!r) { changes = []; return; }
@@ -1183,10 +1187,11 @@ const showStatus = () => {
   else if (!r) words = "đang so…";
   else {
     if (p.state === "running") words = `đang dò hình ${p.total ? Math.floor((p.done / p.total) * 100) : 0}%, `;
+    else if (p.state === "settling") words = "phim vừa sửa xong, chờ một lát rồi dò hình, ";
     else if (p.state === "no-chrome") words = "không có Chrome để dò hình, chỉ báo theo edit.json, ";
     else if (p.state === "failed") words = `dò hình lỗi: ${p.failed}, `;
     const seekable = changes.filter((c) => c.from !== null).length;
-    words += seekable ? `${seekable} chỗ đổi` : r.assets.length ? "có file đổi, không so được" : p.state === "running" ? "chưa thấy gì đổi" : p.state === "failed" ? "chưa biết hình có đổi không" : "không thấy gì đổi";
+    words += seekable ? `${seekable} chỗ đổi` : r.assets.length ? "có file đổi, không so được" : ["running", "settling"].includes(p.state) ? "chưa thấy gì đổi" : p.state === "failed" ? "chưa biết hình có đổi không" : "không thấy gì đổi";
   }
   $("cmpStatus").textContent = words;
 };
@@ -1196,13 +1201,15 @@ const badgeCount = () => {
   b.querySelector("em")?.remove();
   if (n) { const e = document.createElement("em"); e.textContent = n; b.append(e); }
 };
-let compareAsked = 0;
+let compareAsked = 0, compareFetch = null;
 const loadCompare = async () => {
   const mine = ++compareAsked;
   if (!cmp.before || !cmp.current || cmp.before === cmp.current) { cmp.result = null; buildChanges(); showStatus(); badgeCount(); listNotes(); drawTimelines(); return; }
   let fresh;
+  compareFetch?.abort(); // an answer nobody will read shouldn't keep downloading over a phone's relay
+  const mineFetch = compareFetch = new AbortController();
   try {
-    const r = await fetch(`/compare/${cmp.before}/${cmp.current}${cmp.on ? "?scan=1" : ""}`);
+    const r = await fetch(`/compare/${cmp.before}/${cmp.current}${cmp.on ? "?scan=1" : ""}`, { signal: mineFetch.signal });
     if (mine !== compareAsked) return;
     if (!r.ok) { cmp.result = null; $("cmpStatus").textContent = "không so được hai bản này"; return; }
     fresh = await r.json();

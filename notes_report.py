@@ -21,7 +21,11 @@ sys.stdout.reconfigure(encoding="utf8")
 
 def load_notes():
     file = ROOT / "notes/notes.jsonl"
-    return [json.loads(l) for l in file.read_text(encoding="utf8").splitlines() if l.strip()] if file.exists() else []
+    notes = [json.loads(l) for l in file.read_text(encoding="utf8").splitlines() if l.strip()] if file.exists() else []
+    whole = [n for n in notes if all(k in n for k in ("id", "t", "text", "shot", "time"))]
+    if len(whole) != len(notes):
+        print(f"{len(notes) - len(whole)} malformed notes skipped: see notes/notes.jsonl", file=sys.stderr)
+    return whole
 
 
 def worked_out(n):

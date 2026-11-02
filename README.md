@@ -17,7 +17,7 @@ npm run demo -- 4321
 
 Open http://localhost:4321. The interface text is in Vietnamese for now: **Phát** is play, **Ghi chú** is note.
 
-The server listens on this machine only and has no password. To use a phone, put it behind something private such as `tailscale serve`, never on the open internet. It answers only to `localhost` and IP addresses, so list the name you reach it by, such as your Tailscale machine's, in a `.live_hosts` file in the film, one per line. A page reached by any other name gets a 403.
+The server listens on this machine only and has no password. To use a phone, put it behind something private such as `tailscale serve`, never on the open internet. It answers only to `localhost` and IP addresses, so list the name you reach it by, such as your Tailscale machine's, in a `.live_hosts` file in the film, one per line, and keep that file out of a public repo. A page reached by any other name gets a 403.
 
 ## Taking notes
 
@@ -37,7 +37,7 @@ Every change to the film is kept as a version in `renders/versions`, 30 at most.
 - **Bật qua lại** (V) flips between the two. On a small screen only one fits, so it's before or after.
 - The tab **Thay đổi** lists each change in words, from `edit.json`.
 
-Both versions are drawn at the same second of the voice, so re-pacing the voice marks only what really moved against it, not everything after it. The picture check runs in a headless Chrome (`tools/chrome-headless-shell`, `LIVE_CHROME`, or the system's) only while comparing is on, samples every 5th frame, saves as it goes, and carries on after a restart.
+Both versions are drawn at the same second of the voice, so re-pacing the voice marks only what really moved against it, not everything after it. The picture check runs in a headless Chrome (`tools/chrome-headless-shell`, `LIVE_CHROME`, or the system's) only while comparing is on and the film hasn't changed for 8 seconds, samples every 5th frame, saves as it goes, and carries on after a restart.
 
 An old version shows today's asset files, so changed models or textures are listed with a warning rather than compared. Its sound isn't kept, only how loud it was over time: yellow marks say where the sound changed, but **Bật qua lại** flips the picture only. When the voice was re-paced, a short sound under loud speech can go unmarked, though any sound moved in `edit.json` still shows.
 

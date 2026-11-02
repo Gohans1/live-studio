@@ -4,7 +4,9 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { constants as osConstants, setPriority } from "node:os";
 import { dirname, join, relative } from "node:path";
+import { gzipSync } from "node:zlib";
 
 const KEEP = 30;
 const RANGE_GAP = 1; // seconds
@@ -13,6 +15,8 @@ const hash = (data) => createHash("md5").update(data).digest("hex").slice(0, 12)
 const ENVELOPE_STEP = 0.05, SOUND_LIMIT = 0.001, SOUND_GAP = 0.5;
 const PACED_MARGIN = 0.3, PACED_LIMIT = 0.002, PACED_RUN = 2; // tuned on a real voice mix, see the comment in soundRanges
 const JOB_LIMIT = 15 * 60e3;
+const SCAN_QUIET = 8e3; // a scan takes a Chrome 12s to get going and pegs the machine: while an AI is still saving, the result would be thrown away anyway
+const MAX_BODY = 20 * 1024 * 1024;
 const SOUND_FILE = /\.(wav|mp3|ogg|opus|flac|m4a|aac|webm)$/i;
 const TOP_NAMES = { beats: "hành động", camera: "camera", cuts: "điểm cắt", face: "mặt", voice: "giọng", zoomRate: "tốc độ zoom" };
 
@@ -187,7 +191,7 @@ export const parseRows = (text) => {
   return { rows, total, done, ends };
 };
 
-export const readJson = (req) => new Promise((ok, no) => { const parts = []; req.on("data", (d) => parts.push(d)); req.on("end", () => { try { ok(JSON.parse(Buffer.concat(parts).toString("utf8"))); } catch (e) { no(e); } }); req.on("error", no); });
+export const readJson = (req) => new Promise((ok, no) => { const parts = []; let size = 0; req.on("data", (d) => { size += d.length; if (size > MAX_BODY) { no(new Error("request too large")); req.destroy(); } else parts.push(d); }); req.on("end", () => { try { ok(JSON.parse(Buffer.concat(parts).toString("utf8"))); } catch (e) { no(e); } }); req.on("error", no); });
 
 export const createVersions = ({ project, here, alias, plugins, port, send, esbuild, squeeze, mixFile, editFile, assetsDir }) => {
   const ROOT = join(project, "renders/versions");
@@ -196,7 +200,7 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
   const INDEX = join(ROOT, "index.json");
   let index = { versions: [], seen: null, base: null };
   try { index = { ...index, ...JSON.parse(readFileSync(INDEX, "utf8")) }; } catch {}
-  let code = null, job = null, timer = null, mixSeen = {}, retries = 0;
+  let code = null, job = null, timer = null, mixSeen = {}, retries = 0, assetStamps = null, lastChange = 0, quietTimer = null;
   const removeProfile = (dir) => { try { rmSync(dir, { recursive: true, force: true }); } catch {} }; // a Chrome just killed can still hold it: the next start clears it
   const sweepProfiles = () => { for (const n of readdirSync(ROOT)) if (n.startsWith("chrome_")) removeProfile(join(ROOT, n)); }; // left by a killed studio or a Chrome still closing: tens of MB each
   sweepProfiles();
@@ -249,7 +253,9 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
       const f = join(SOUNDS, `${mixId}.f32`);
       if (!existsSync(f)) { const e = envelopeOf(mixFile); writeFileSync(f, Buffer.from(e.buffer, e.byteOffset, e.byteLength)); }
     }
-    const stamps = JSON.stringify(stampAssets(assetsDir)), assetsId = hash(stamps);
+    // Thousands of files on a slow disk take a second and hold up every request, so they're only walked when something there moved
+    assetStamps ??= JSON.stringify(stampAssets(assetsDir));
+    const stamps = assetStamps, assetsId = hash(stamps);
     const id = hash([codeId, editId, mixId, assetsId].join());
     if (current() === id) return;
     writeFileSync(join(CODE, `${codeId}.js`), code);
@@ -259,6 +265,8 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
     index.versions.push({ id, at: new Date().toISOString(), code: codeId, edit: editId, mix: mixId, assets: assetsId });
     prune();
     saveIndex();
+    lastChange = Date.now();
+    stopJob(); // what it's scanning was just replaced
     send("versions");
   };
   // Saves come in bursts while an AI works, and one round of fixes is one thing to compare
@@ -300,6 +308,7 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
     const profile = join(ROOT, `chrome_${process.pid}_${Date.now()}`); // its own: the last job's Chrome may still be closing
     mkdirSync(profile, { recursive: true });
     const proc = spawn(chrome, [chrome.includes("headless-shell") ? "--headless" : "--headless=new", "--use-gl=angle", "--use-angle=default", "--enable-gpu", "--ignore-gpu-blocklist", "--no-first-run", "--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows", `--user-data-dir=${profile}`, "--remote-debugging-port=0", `http://127.0.0.1:${port}/compare-job/${a}/${b}`], { stdio: "ignore" });
+    try { setPriority(proc.pid, osConstants.priority.PRIORITY_BELOW_NORMAL); } catch {} // the film being watched goes first
     const key = `${a}_${b}`;
     const fail = (message) => { failures.set(key, message); send("compare", { a, b }); };
     const mine = { a, b, proc, limit: setTimeout(() => { if (job === mine) { stopJob(); fail("quá lâu, bật lại studio để dò tiếp"); nextJob(); } }, JOB_LIMIT) };
@@ -338,6 +347,11 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
       if (done) state = "done";
       else if (failed) state = "failed";
       else if (!scan) state = "waiting";
+      else if (Date.now() - lastChange < SCAN_QUIET) {
+        state = "settling";
+        clearTimeout(quietTimer);
+        quietTimer = setTimeout(() => send("compare", { a, b }), SCAN_QUIET - (Date.now() - lastChange) + 100); // the page asks again, and this time it starts
+      }
       else state = startJob(a, b) ? "running" : "no-chrome";
     }
     const sorted = rows.toSorted((p, q) => p.f - q.f), ranges = [];
@@ -355,12 +369,19 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
     };
   };
 
-  const json = (res, data) => { res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store"); res.end(JSON.stringify(data)); };
+  const json = (req, res, data) => {
+    res.setHeader("content-type", "application/json");
+    res.setHeader("cache-control", "no-store");
+    const text = JSON.stringify(data);
+    if (text.length < 1024 || !/gzip/.test(req.headers["accept-encoding"] ?? "")) { res.end(text); return; }
+    res.setHeader("content-encoding", "gzip"); // sent every second during a scan, over a phone's relay
+    res.end(gzipSync(text));
+  };
   const missing = (res) => { res.statusCode = 404; res.end(); };
 
   const route = async (req, res, url) => {
     if (url === "/versions.json") {
-      json(res, { current: current(), before: beforeId(), seen: index.seen, versions: index.versions.map((v) => ({ id: v.id, at: v.at })) });
+      json(req, res, { current: current(), before: beforeId(), seen: index.seen, versions: index.versions.map((v) => ({ id: v.id, at: v.at })) });
       return true;
     }
     if (req.method === "POST" && url === "/seen") {
@@ -373,23 +394,32 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
       res.end("ok");
       return true;
     }
-    const before = /^\/before\/([0-9a-f]+)\/(view\.js|edit\.json)?$/.exec(url);
+    // By the code's own hash: most saves change only the edit, and a new version shouldn't download the same film again
+    const bundle = /^\/before\/code\/([0-9a-f]+)\.js$/.exec(url);
+    if (bundle) {
+      const f = join(CODE, `${bundle[1]}.js`);
+      if (!existsSync(f)) { missing(res); return true; }
+      res.setHeader("cache-control", "max-age=31536000");
+      res.setHeader("content-type", "text/javascript");
+      res.end(squeeze(req, res, readFileSync(f), bundle[1]));
+      return true;
+    }
+    const before = /^\/before\/([0-9a-f]+)\/(edit\.json)?$/.exec(url);
     if (before) {
       const v = find(before[1]);
       if (!v) { missing(res); return true; }
-      res.setHeader("cache-control", before[2] ? "max-age=31536000" : "no-cache"); // those two never change under their version's name, the page around them can
-      if (before[2] === "view.js") { res.setHeader("content-type", "text/javascript"); res.end(squeeze(req, res, readFileSync(join(CODE, `${v.code}.js`)), v.code)); }
-      else if (before[2] === "edit.json") { res.setHeader("content-type", "application/json"); res.end(readFileSync(join(EDITS, `${v.edit}.json`))); }
-      else { res.setHeader("content-type", "text/html; charset=utf-8"); res.end('<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100%;height:100%}</style><canvas id="gl"></canvas><script>addEventListener("error",e=>parent.postMessage({filmError:e.message},"*"))</script><script type="module" src="view.js"></script>'); }
+      res.setHeader("cache-control", before[2] ? "max-age=31536000" : "no-cache"); // an edit never changes under its version's name, the page around it can
+      if (before[2] === "edit.json") { res.setHeader("content-type", "application/json"); res.end(readFileSync(join(EDITS, `${v.edit}.json`))); }
+      else { res.setHeader("content-type", "text/html; charset=utf-8"); res.end('<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100%;height:100%}</style><canvas id="gl"></canvas><script>addEventListener("error",e=>parent.postMessage({filmError:e.message},"*"))</script><script type="module" src="/before/code/' + v.code + '.js"></script>'); }
       return true;
     }
     const pair = /^\/compare(-job)?\/([0-9a-f]+)\/([0-9a-f]+)(?:\/(done|rows|start|finish|fail))?$/.exec(url);
     if (!pair) return false;
     const [, isJob, a, b, step] = pair;
     if (!find(a) || !find(b)) { missing(res); return true; }
-    if (!isJob) { json(res, compareResult(a, b, req.url.includes("scan=1"))); return true; }
+    if (!isJob) { json(req, res, compareResult(a, b, req.url.includes("scan=1"))); return true; }
     if (!step) { res.setHeader("content-type", "text/html; charset=utf-8"); res.end(readFileSync(join(here, "compare_job.html"))); return true; }
-    if (step === "done") { json(res, readRows(a, b).rows.map((r) => r.f)); return true; }
+    if (step === "done") { json(req, res, readRows(a, b).rows.map((r) => r.f)); return true; }
     const data = await readJson(req);
     const file = compareFile(a, b);
     if (step === "start") appendFileSync(file, JSON.stringify({ total: data.total, ends: data.ends }) + "\n");
@@ -421,5 +451,5 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
     await ctx.watch();
   };
 
-  return { route, changed, start, current };
+  return { route, changed, start, current, assetsMoved: () => { assetStamps = null; changed(); } };
 };

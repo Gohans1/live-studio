@@ -79,7 +79,7 @@ if (!existsSync(NOTES)) writeFileSync(NOTES, "");
 const parseNotes = (file) => (existsSync(file) ? readFileSync(file, "utf8") : "").split("\n").filter((l) => l.trim()).flatMap((l) => { try { return [JSON.parse(l)]; } catch { console.error("bad note line kept in backups:", l); return []; } });
 const readNotes = () => parseNotes(NOTES);
 const DELETED = join(PROJECT, "notes/deleted.jsonl"); // × only moves a note here
-const BACKUPS = join(PROJECT, "renders/notes_backup"); // renders is on E:
+const BACKUPS = join(PROJECT, "renders/notes_backup");
 mkdirSync(BACKUPS, { recursive: true });
 let backedUp = 0;
 const backupNotes = () => {
@@ -139,10 +139,15 @@ const HOSTS_FILE = join(PROJECT, ".live_hosts");
 const EXTRA_HOSTS = (existsSync(HOSTS_FILE) ? readFileSync(HOSTS_FILE, "utf8") : "").split(/\s+/).filter(Boolean).map((n) => n.toLowerCase());
 const knownHost = (host) => { const n = (host ?? "").replace(/:\d+$/, "").toLowerCase(); return n === "localhost" || n === "[::1]" || /^\d+\.\d+\.\d+\.\d+$/.test(n) || EXTRA_HOSTS.includes(n); };
 const fromElsewhere = (req) => { try { return !!req.headers.origin && new URL(req.headers.origin).host !== req.headers.host; } catch { return true; } };
+const isJpeg = (data) => !data || (typeof data === "string" && data.startsWith("data:image/jpeg;base64,/9j/"));
 const inside = (root, file) => { const r = relative(root, file); return r && !r.startsWith("..") && !isAbsolute(r); };
 
 const handle = async (req, res) => {
   if (!knownHost(req.headers.host) || (req.method !== "GET" && fromElsewhere(req))) { res.statusCode = 403; res.end(); return; }
+  // Another site can't load the film as a script, or show the studio in a frame to steal clicks
+  res.setHeader("cross-origin-resource-policy", "same-origin");
+  res.setHeader("content-security-policy", "frame-ancestors 'self'");
+  res.setHeader("x-content-type-options", "nosniff");
   const url = decodeURIComponent(req.url.split("?")[0]);
   if (url === "/favicon.ico") { res.statusCode = 204; res.end(); return; }
   if (await versions.route(req, res, url)) return;
@@ -171,7 +176,8 @@ const handle = async (req, res) => {
   if (req.method === "POST" && url === "/notes") {
     try {
       const { note, img, crop, strip } = await readJson(req);
-      if (!/^[a-z0-9]+$/.test(note.id)) { res.statusCode = 400; res.end(); return; }
+      if (typeof note.id !== "string" || !/^[a-z0-9]+$/.test(note.id) || !Number.isFinite(note.t) || typeof note.text !== "string" || ![img, crop, strip].every(isJpeg)) { res.statusCode = 400; res.end(); return; }
+      for (const k of ["crop", "strip", "fixes", "edits", "done"]) delete note[k]; // what's been done to a note is the server's to say, and its pictures are named below
       note.img = img ? `notes/img/${note.id}.jpg` : undefined;
       if (img) writeFileSync(join(NOTE_IMG, `${note.id}.jpg`), Buffer.from(img.split(",")[1], "base64"));
       for (const [kind, pic] of [["crop", crop], ["strip", strip]]) {
@@ -317,7 +323,7 @@ if (existsSync(VOICE)) {
   if (!existsSync(VOICE_MAP) || statSync(VOICE_MAP).mtimeMs < statSync(VOICE).mtimeMs) mapVoice();
 }
 if (!existsSync(LITE)) spawn(PYTHON, ["make_lite.py"], { cwd: PROJECT, stdio: "inherit" });
-if (existsSync(PUBLIC)) watch(PUBLIC, { recursive: true }, debounce(() => versions.changed(), 500));
+if (existsSync(PUBLIC)) watch(PUBLIC, { recursive: true }, debounce(() => versions.assetsMoved(), 500));
 watch(NOTES, debounce(() => send("notes"), 100)); // Claude ticking a note off shows up here too
 watch(join(here, "studio.html"), debounce(() => send("code"), 100));
 // Voice edits are made in the file: the voice and the mix follow it
@@ -352,5 +358,5 @@ await versions.start();
 const LAN = process.argv.includes("--lan");
 server.listen(PORT, LAN ? "0.0.0.0" : "127.0.0.1", () => {
   console.log(`live at http://localhost:${PORT}`);
-  if (LAN) for (const nets of Object.values(networkInterfaces())) for (const n of nets) if (n.family === "IPv4" && !n.internal) console.log(`on the phone: http://${n.address}:${PORT}`);
+  if (LAN) for (const nets of Object.values(networkInterfaces())) for (const n of nets) if (n.family === "IPv4" && !n.internal) console.log(`no password: anyone on this network can open http://${n.address}:${PORT} and change the notes. tailscale serve is the safe way to a phone`);
 });

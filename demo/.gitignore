@@ -3,3 +3,4 @@ renders/
 notes/
 .venv/
 __pycache__/
+.live_hosts

@@ -14,7 +14,15 @@ import { fromSource, toSource } from "film/edit";
   // Shaders compile on first use: touch each shot while idle, and put the frame being shown back in the same task
   const warm = SHOTS_OUT.map((s) => s.t + 0.1);
   if (!q.has("job")) {
-    const step = () => { if (!warm.length) return; try { render(warm.shift()); render(last); } catch {} setTimeout(step, 60); }; // a moment that breaks says so when it's reached, not here
+    // Never while the film is playing beside it: each touch can hold up the page's only thread for a third of a second
+    const step = () => {
+      if (!warm.length) return;
+      let busy = false;
+      try { busy = parent.__playing?.(); } catch {}
+      if (busy) { setTimeout(step, 500); return; }
+      try { render(warm.shift()); render(last); } catch {} // a moment that breaks says so when it's reached, not here
+      setTimeout(step, 60);
+    };
     step();
   }
   parent.postMessage({ filmReady: true }, "*");
