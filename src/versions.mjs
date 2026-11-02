@@ -289,7 +289,7 @@ export const createVersions = ({ project, here, alias, port, send, esbuild, mixF
 
   const json = (res, data) => { res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store"); res.end(JSON.stringify(data)); };
   const missing = (res) => { res.statusCode = 404; res.end(); };
-  const body = (req) => new Promise((ok, no) => { const parts = []; req.on("data", (d) => parts.push(d)); req.on("end", () => ok(JSON.parse(Buffer.concat(parts).toString("utf8")))); req.on("error", no); });
+  const body = (req) => new Promise((ok, no) => { const parts = []; req.on("data", (d) => parts.push(d)); req.on("end", () => { try { ok(JSON.parse(Buffer.concat(parts).toString("utf8"))); } catch (e) { no(e); } }); req.on("error", no); });
 
   const route = async (req, res, url) => {
     if (url === "/versions.json") {
