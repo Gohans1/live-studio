@@ -28,6 +28,19 @@ The server listens on this machine only and has no password. To use a phone, put
 
 Words aren't lost: every keystroke is kept on the device, unsent notes wait and retry when the signal drops, the file is written atomically, × moves a note to `notes/deleted.jsonl` with an undo, and copies pile up in `renders/notes_backup`.
 
+## Before and after
+
+Every change to the film is kept as a version in `renders/versions`, 30 at most. Press **So sánh** (B) to draw an older version beside the current one, frame for frame.
+
+- "Before" is the version you last watched: using the page counts as watching, opening it doesn't. The list next to the bar picks any other.
+- Pink marks on the timeline are where the picture changed, yellow where the sound did. Z and X jump between them, and boxes show the place in the frame. A change over more than half the frame gets no box, since it's the camera or the light.
+- **Bật qua lại** (V) flips between the two. On a small screen only one fits, so it's before or after.
+- The tab **Thay đổi** lists each change in words, from `edit.json`.
+
+Both versions are drawn at the same second of the voice, so re-pacing the voice marks only what really moved against it, not everything after it. The picture check runs in a headless Chrome (`tools/chrome-headless-shell`, `LIVE_CHROME`, or the system's), saves as it goes, and carries on after a restart.
+
+An old version shows today's asset files, so changed models or textures are listed with a warning rather than compared.
+
 ## What the agent gets
 
 Each note in `notes/notes.jsonl` carries the time and frame, the tap position and the object under it, the 3D point, the camera, the shot and how far into it, the words and actions around the moment, whether the film was playing when the note was pressed, the device, and the version of the film. Three pictures go with it: the frame with the pin, the area under the tap, and a strip of the seconds around the moment.
