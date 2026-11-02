@@ -26,7 +26,7 @@ const mapTime = (warp, x, a, b) => {
 // ---------- What changed in edit.json, in words
 const timeOf = (v) => (v && typeof v === "object" ? (Array.isArray(v) ? (typeof v[0] === "number" ? v[0] : null) : typeof v.at === "number" ? v.at : typeof v.t === "number" ? v.t : null) : null);
 const nameOf = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v.title ?? v.word ?? v.name ?? null : null);
-const short = (v) => { const s = JSON.stringify(v) ?? "-"; return s.length > 40 ? s.slice(0, 37) + "..." : s; };
+const short = (v) => { const s = JSON.stringify(v, (_, x) => (typeof x === "number" ? +x.toFixed(4) : x)) ?? "-"; return s.length > 40 ? s.slice(0, 37) + "..." : s; };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const isPlain = (v) => v && typeof v === "object" && !Array.isArray(v);
 
@@ -62,7 +62,7 @@ const walk = (a, b, path, time, name, out) => {
     for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
       const was = a[k], now = b[k], at = path ? `${path}.${k}` : k;
       const keyTime = /^\d+(\.\d+)?$/.test(k) ? Number(k) : null;
-      const when = timeOf(now) ?? timeOf(was) ?? keyTime ?? (k === "at" || k === "t" ? null : time) ?? time;
+      const when = (isPlain(now) ? timeOf(now) : null) ?? (isPlain(was) ? timeOf(was) : null) ?? keyTime ?? time; // an array here is a position like [x, y, z], not a time
       const who = nameOf(now) ?? nameOf(was) ?? name;
       if (was === undefined) out.push({ path: at, time: when, name: who, now: "thêm" });
       else if (now === undefined) out.push({ path: at, time: when, name: who, now: "bỏ" });

@@ -1215,6 +1215,7 @@ const loadVersions = async () => {
   cmp.current = v.current; cmp.seen = v.seen; cmp.versions = v.versions; cmp.autoBefore = v.before;
   if (cmp.picked && !v.versions.some((x) => x.id === cmp.picked)) cmp.picked = null;
   cmp.before = cmp.picked ?? v.before;
+  if (cmp.on && !loadVersions.opened) { loadVersions.opened = true; showTab("diff"); } // comparing when the page reloaded: pick up where it was
   fillWhich();
   applyShow();
   loadBeforeFrame();
