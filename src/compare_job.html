@@ -71,11 +71,12 @@ try {
   const order = [];
   for (let f = 0; f <= last; f += 15) order.push(f);
   for (let f = 0; f <= last; f += 5) if (f % 15) order.push(f);
-  await post("start", { total: order.length });
+  await post("start", { total: order.length, ends: [A.toSource(A.duration), B.toSource(B.duration)] });
   let rows = [];
   for (const f of order) {
     if (already.has(f)) continue;
-    rows.push(compare(A, B, f));
+    // A version with a bug breaks at some moments only, and those differ from the other side as much as anything can
+    try { rows.push(compare(A, B, f)); } catch { rows.push({ f, n: 1, w: 1 }); }
     if (rows.length >= BATCH) { await post("rows", rows); rows = []; }
   }
   if (rows.length) await post("rows", rows);

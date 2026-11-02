@@ -20,7 +20,8 @@ sys.stdout.reconfigure(encoding="utf8")
 
 
 def load_notes():
-    return [json.loads(l) for l in (ROOT / "notes/notes.jsonl").read_text(encoding="utf8").splitlines() if l.strip()]
+    file = ROOT / "notes/notes.jsonl"
+    return [json.loads(l) for l in file.read_text(encoding="utf8").splitlines() if l.strip()] if file.exists() else []
 
 
 def worked_out(n):
@@ -44,9 +45,15 @@ def worked_out(n):
 
 def film_now():
     try:
-        return subprocess.run(["git", "describe", "--tags", "--always", "--dirty"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+        described = subprocess.run(["git", "describe", "--tags", "--always", "--dirty"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     except OSError:
-        return ""
+        described = ""
+    if described:
+        return described
+    try:
+        return json.loads((ROOT / "renders/versions/index.json").read_text(encoding="utf8"))["versions"][-1]["id"]
+    except (OSError, ValueError, KeyError, IndexError):
+        return "(no version yet)"
 
 
 def one_line(n):

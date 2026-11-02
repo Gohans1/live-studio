@@ -177,6 +177,12 @@ const pinCrop = (pin) => {
   c.getContext("2d").drawImage(from, pin.x * from.width - side / 2, pin.y * from.height - side / 2, side, side, 0, 0, 480, 480);
   return c.toDataURL("image/jpeg", 0.85);
 };
+// What the note is about is what's on screen, and on TRƯỚC that's the old version
+const shownAt = (x) => {
+  if (cmp.on && cmp.show === "before" && cmp.film) { try { cmp.film.draw(cmp.film.fromSource(toSource(x))); dirty = true; return cmp.film.canvas; } catch {} }
+  render(x);
+  return canvas;
+};
 const STRIP = [-2, -1, 0, 1];
 const momentStrip = (at) => {
   const w = 400, h = 225, c = document.createElement("canvas");
@@ -185,8 +191,7 @@ const momentStrip = (at) => {
   g.font = "bold 20px Consolas,monospace";
   STRIP.forEach((d, i) => {
     const x = Math.min(Math.max(0, at + d), DURATION - 0.02);
-    render(x);
-    g.drawImage(canvas, i * w, 0, w, h);
+    g.drawImage(shownAt(x), i * w, 0, w, h);
     g.fillStyle = "rgba(0,0,0,.7)"; g.fillRect(i * w + 4, 4, 128, 28);
     g.fillStyle = d === 0 ? "#3AA99F" : "#fff"; g.fillText(stamp(x), i * w + 8, 25);
     g.fillStyle = "#000"; g.fillRect(i * w, 0, 2, h);
@@ -226,7 +231,7 @@ const snapshot = (pin, at = t) => {
   const c = document.createElement("canvas");
   c.width = 960; c.height = 540;
   const g = c.getContext("2d");
-  g.drawImage(finalOn && finalRender ? $("final") : canvas, 0, 0, 960, 540);
+  g.drawImage(finalOn && finalRender ? $("final") : shownAt(at), 0, 0, 960, 540);
   if (pin) { g.strokeStyle = "#3AA99F"; g.lineWidth = 3; g.beginPath(); g.arc(pin.x * 960, pin.y * 540, 14, 0, 7); g.stroke(); g.strokeStyle = "#000"; g.lineWidth = 1; g.beginPath(); g.arc(pin.x * 960, pin.y * 540, 16, 0, 7); g.stroke(); }
   g.font = "bold 24px Consolas,monospace"; g.textAlign = "right"; g.fillStyle = "rgba(0,0,0,.7)"; g.fillRect(790, 8, 162, 34); g.fillStyle = "#fff"; g.fillText(stamp(at), 944, 33);
   return c.toDataURL("image/jpeg", 0.85);
@@ -727,7 +732,7 @@ const drawDetail = () => {
   // Seconds
   g.fillStyle = "#878580"; g.font = "10px Consolas,monospace";
   const tick = [1, 2, 5, 10, 30, 60].find((n) => (n / span) * w >= 56) ?? 60; // room for its label, whatever the screen
-  for (let s = Math.ceil(a / tick) * tick; s <= b; s += tick) { g.fillRect(X(s), h - 5, 1, 5); g.fillText(`${pad(Math.floor(s / 60))}:${pad(s % 60)}`, X(s) + 3, h - 7); }
+  for (let s = Math.max(0, Math.ceil(a / tick) * tick); s <= b; s += tick) { g.fillRect(X(s), h - 5, 1, 5); g.fillText(`${pad(Math.floor(s / 60))}:${pad(s % 60)}`, X(s) + 3, h - 7); }
   // What changed since the version being compared
   for (const c of changes) {
     if (c.from === null || c.to < a || c.from > b) continue;
@@ -1065,12 +1070,13 @@ const SMALL_SCREEN = PHONE || matchMedia("(max-width:820px)").matches;
 var cmp = { on: !!stored?.on, show: stored?.show ?? (SMALL_SCREEN ? "after" : "both"), picked: stored?.picked ?? null, before: null, current: null, seen: null, film: null, result: null, versions: [] };
 var changes = [];
 const keepCompare = () => { try { sessionStorage.setItem("compare", JSON.stringify({ on: cmp.on, show: cmp.show, picked: cmp.picked })); } catch {} };
-const timeOfDay = (iso) => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`; };
+const timeOfDay = (iso) => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`; };
 
 const drawBefore = () => {
-  if (!cmp.on || !cmp.film) return;
+  if (!cmp.on || !cmp.film || cmp.show === "after") return; // a hidden side costs a phone a whole second scene for nothing
   const at = cmp.film.fromSource(toSource(t));
-  cmp.film.draw(at);
+  // An old version is often the one with the bug just fixed: it may break, the film being watched must not stop
+  try { cmp.film.draw(at); } catch (e) { cmp.film = null; $("beforeLoad").textContent = `Bản này lỗi ở ${stamp(at)}: ${String(e?.message ?? e).slice(0, 200)}`; return; }
   $("clockB").textContent = stamp(at);
 };
 const applyShow = () => {
@@ -1087,11 +1093,11 @@ const applyShow = () => {
   dirty = true;
 };
 const loadBeforeFrame = () => {
-  const frame = $("beforeFrame"), want = cmp.on && cmp.before ? `/before/${cmp.before}/?w=${canvas.width}&h=${canvas.height}` : "";
+  const frame = $("beforeFrame"), want = cmp.on && cmp.before && cmp.show !== "after" ? `/before/${cmp.before}/?w=${canvas.width}&h=${canvas.height}` : "";
   if (frame.dataset.want === want) return;
   frame.dataset.want = want;
   cmp.film = null;
-  $("beforeLoad").textContent = want ? "đang dựng bản trước…" : cmp.on ? "Chưa có bản cũ để so" : "";
+  $("beforeLoad").textContent = want ? "đang dựng bản trước…" : cmp.on && !cmp.before ? "Chưa có bản cũ để so" : "";
   if (want) frame.src = want; else frame.removeAttribute("src");
 };
 addEventListener("message", (e) => {
@@ -1104,7 +1110,7 @@ addEventListener("message", (e) => {
 });
 
 // Everything known so far as one list: picture ranges with the edits that explain them, then edits and sound on their own
-const cmpEmptyWords = () => (!cmp.before ? "Chưa có bản cũ để so: phim đổi lần tới thì có" : cmp.before === cmp.current ? "Đây là cùng một bản" : !cmp.result ? "Đang so…" : cmp.result.picture.state === "running" ? "Đang dò, chưa thấy gì đổi" : "Không thấy gì đổi");
+const cmpEmptyWords = () => (!cmp.before ? "Chưa có bản cũ để so: phim đổi lần tới thì có" : cmp.before === cmp.current ? "Đây là cùng một bản" : !cmp.result ? "Đang so…" : cmp.result.picture.state === "running" ? "Đang dò, chưa thấy gì đổi" : cmp.result.picture.state === "failed" ? "Dò hình lỗi, chưa biết hình có đổi không" : "Không thấy gì đổi");
 const buildChanges = () => {
   const r = cmp.result;
   if (!r) { changes = []; return; }
@@ -1115,8 +1121,9 @@ const buildChanges = () => {
     else list.push({ from: e.at, to: e.at, kind: "edit", title: "Sửa trong edit.json", lines: [e.text] });
   }
   for (const s of r.sound) list.push({ from: s.from, to: s.to, kind: "sound", title: "Tiếng đổi", lines: [] });
+  if (r.length) list.push({ from: r.length.at, to: r.length.at, kind: "edit", title: `Phim ${r.length.by < 0 ? "ngắn đi" : "dài ra"} ${Math.abs(r.length.by).toFixed(1)} giây`, lines: [] });
   if (r.code) list.push({ from: null, to: null, kind: "edit", title: "Code phim đổi", lines: ["Chỗ nào code làm đổi hình thì nằm ở danh sách hình phía trên"] });
-  if (r.assets.length) list.push({ from: null, to: null, kind: "edit", title: "File đổi (ảnh, model, tiếng)", lines: [`Bản TRƯỚC đang hiện bằng file mới, nên chỗ này không so được: ${r.assets.slice(0, 5).join(", ")}${r.assets.length > 5 ? ` và ${r.assets.length - 5} file nữa` : ""}`] });
+  if (r.assets.length) list.push({ from: null, to: null, kind: "edit", title: "File đổi (ảnh, model)", lines: [`Bản TRƯỚC đang hiện bằng file mới, nên chỗ này không so được: ${r.assets.slice(0, 5).join(", ")}${r.assets.length > 5 ? ` và ${r.assets.length - 5} file nữa` : ""}`] });
   changes = list.sort((a, b) => (a.from ?? -1) - (b.from ?? -1));
 };
 const changeCard = (c) => {
@@ -1179,7 +1186,7 @@ const showStatus = () => {
     else if (p.state === "no-chrome") words = "không có Chrome để dò hình, chỉ báo theo edit.json, ";
     else if (p.state === "failed") words = `dò hình lỗi: ${p.failed}, `;
     const seekable = changes.filter((c) => c.from !== null).length;
-    words += seekable ? `${seekable} chỗ đổi` : p.state === "running" ? "chưa thấy gì đổi" : "không thấy gì đổi";
+    words += seekable ? `${seekable} chỗ đổi` : r.assets.length ? "có file đổi, không so được" : p.state === "running" ? "chưa thấy gì đổi" : p.state === "failed" ? "chưa biết hình có đổi không" : "không thấy gì đổi";
   }
   $("cmpStatus").textContent = words;
 };
@@ -1193,12 +1200,21 @@ let compareAsked = 0;
 const loadCompare = async () => {
   const mine = ++compareAsked;
   if (!cmp.before || !cmp.current || cmp.before === cmp.current) { cmp.result = null; buildChanges(); showStatus(); badgeCount(); listNotes(); drawTimelines(); return; }
-  const r = await fetch(`/compare/${cmp.before}/${cmp.current}`);
-  if (!r.ok || mine !== compareAsked) return;
-  cmp.result = await r.json();
+  let fresh;
+  try {
+    const r = await fetch(`/compare/${cmp.before}/${cmp.current}${cmp.on ? "?scan=1" : ""}`);
+    if (mine !== compareAsked) return;
+    if (!r.ok) { cmp.result = null; $("cmpStatus").textContent = "không so được hai bản này"; return; }
+    fresh = await r.json();
+  } catch { if (mine === compareAsked) loadCompareSoon(); return; } // the line dropped or the studio is restarting: what's shown stays right until it's back
+  if (mine !== compareAsked) return;
+  cmp.result = fresh;
   drawChangeBoxes.last = undefined;
   buildChanges(); showStatus(); badgeCount(); listTabDiff();
-  if (noteTab === "diff") listNotes();
+  // Rebuilt only when it says something new: during a scan this comes every second, and a rebuild under a finger loses the tap
+  const words = JSON.stringify([changes, fresh.picture.state]);
+  if (noteTab === "diff" && words !== loadCompare.words) listNotes();
+  loadCompare.words = words;
   drawTimelines();
   dirty = true;
 };
@@ -1206,7 +1222,7 @@ const loadCompareSoon = () => { if (loadCompareSoon.h) return; loadCompareSoon.h
 const fillWhich = () => {
   const s = $("cmpWhich");
   const older = cmp.versions.filter((v) => v.id !== cmp.current).reverse();
-  s.replaceChildren(...older.map((v) => { const o = document.createElement("option"); o.value = v.id; o.textContent = `${timeOfDay(v.at)}${v.id === cmp.autoBefore ? ", xem lần cuối" : ""}`; return o; }));
+  s.replaceChildren(...older.map((v) => { const o = document.createElement("option"); o.value = v.id; o.textContent = `${timeOfDay(v.at)}${v.id === cmp.autoBefore && cmp.seen ? ", xem lần cuối" : ""}`; return o; }));
   s.value = cmp.before ?? "";
 };
 const loadVersions = async () => {
@@ -1215,7 +1231,7 @@ const loadVersions = async () => {
   const v = await r.json();
   $("cmpB").hidden = false;
   cmp.current = v.current; cmp.seen = v.seen; cmp.versions = v.versions; cmp.autoBefore = v.before;
-  if (cmp.picked && !v.versions.some((x) => x.id === cmp.picked)) cmp.picked = null;
+  if (cmp.picked && (cmp.picked === v.current || !v.versions.some((x) => x.id === cmp.picked))) cmp.picked = null;
   cmp.before = cmp.picked ?? v.before;
   if (cmp.on && !loadVersions.opened) { loadVersions.opened = true; showTab("diff"); } // comparing when the page reloaded: pick up where it was
   fillWhich();
@@ -1232,11 +1248,13 @@ const setCompare = (on) => {
   loadBeforeFrame();
   drawChangeBoxes.last = undefined;
   drawChangeBoxes();
+  if (on) loadCompare();
 };
 const flipCompare = () => {
   cmp.show = cmp.show === "before" ? "after" : cmp.show === "after" && !SMALL_SCREEN ? "both" : "before";
   keepCompare();
   applyShow();
+  loadBeforeFrame();
 };
 const nextChange = (d) => {
   const stops = changes.filter((c) => c.from !== null).map((c) => c.from);
@@ -1300,7 +1318,7 @@ $("tabHist").onclick = () => showTab("history");
 $("tabDiff").onclick = () => showTab("diff");
 $("moreB").onclick = () => { const open = $("more").classList.toggle("open"); $("moreB").classList.toggle("on", open); $("moreB").setAttribute("aria-expanded", open); };
 // A button keeps the keyboard's focus after a click, and Space would then press it on top of playing
-$("row").addEventListener("click", (e) => e.target.blur?.());
+$("row").addEventListener("click", (e) => e.target.closest("button")?.blur());
 addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key;
@@ -1336,6 +1354,9 @@ events.addEventListener("sound-start", () => { flash("đang trộn tiếng…");
 events.addEventListener("sound", () => { loadMix(); loadTrials(); flash("tiếng đã cập nhật"); });
 events.addEventListener("notes", loadNotes);
 events.addEventListener("versions", () => loadVersions());
+// The studio restarted: the scan only goes on when a page asks for it
+let eventsOpened = false;
+events.addEventListener("open", () => { if (eventsOpened) loadVersions(); eventsOpened = true; });
 events.addEventListener("compare", (e) => { const d = JSON.parse(e.data); if (d.a === cmp.before && d.b === cmp.current) loadCompareSoon(); });
 events.addEventListener("voice", loadVoice);
 events.addEventListener("edit", async () => { const fresh = await (await fetch("/edit.json")).json(); if (JSON.stringify(fresh) !== snapshotEdit()) { setEdit(fresh); refreshTimes(); } });

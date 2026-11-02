@@ -17,7 +17,7 @@ npm run demo -- 4321
 
 Open http://localhost:4321. The interface text is in Vietnamese for now: **Phát** is play, **Ghi chú** is note.
 
-The server listens on this machine only and has no password. To use a phone, put it behind something private such as `tailscale serve`, never on the open internet.
+The server listens on this machine only and has no password. To use a phone, put it behind something private such as `tailscale serve`, never on the open internet. It answers only to `localhost` and IP addresses, so list the name you reach it by, such as your Tailscale machine's, in a `.live_hosts` file in the film, one per line. A page reached by any other name gets a 403.
 
 ## Taking notes
 
@@ -37,9 +37,9 @@ Every change to the film is kept as a version in `renders/versions`, 30 at most.
 - **Bật qua lại** (V) flips between the two. On a small screen only one fits, so it's before or after.
 - The tab **Thay đổi** lists each change in words, from `edit.json`.
 
-Both versions are drawn at the same second of the voice, so re-pacing the voice marks only what really moved against it, not everything after it. The picture check runs in a headless Chrome (`tools/chrome-headless-shell`, `LIVE_CHROME`, or the system's), saves as it goes, and carries on after a restart.
+Both versions are drawn at the same second of the voice, so re-pacing the voice marks only what really moved against it, not everything after it. The picture check runs in a headless Chrome (`tools/chrome-headless-shell`, `LIVE_CHROME`, or the system's) only while comparing is on, samples every 5th frame, saves as it goes, and carries on after a restart.
 
-An old version shows today's asset files, so changed models or textures are listed with a warning rather than compared.
+An old version shows today's asset files, so changed models or textures are listed with a warning rather than compared. Its sound isn't kept, only how loud it was over time: yellow marks say where the sound changed, but **Bật qua lại** flips the picture only. When the voice was re-paced, a short sound under loud speech can go unmarked, though any sound moved in `edit.json` still shows.
 
 ## What the agent gets
 
@@ -64,7 +64,7 @@ node ../live-studio/init.mjs .          # connect this project, --dry to only se
 node src/live.mjs 4321
 ```
 
-`init.mjs` adds a `file:` dependency, so `node_modules/live-studio` is a link to this repo, and writes three small files into the film: `src/live.mjs` and `notes_report.py` open the studio on this film, and `src/edit.ts` hands `edit.json` to it. It refuses if a file about to be removed holds changes this repo never had, so they can be moved here first. A project with no film yet gets the demo's parts to replace.
+`init.mjs` adds a `file:` dependency, so `node_modules/live-studio` is a link to this repo, and writes three small files into the film: `src/live.mjs` and `notes_report.py` open the studio on this film, and `src/edit.ts` hands `edit.json` to it. It refuses if a file about to be removed holds changes this repo never had, so they can be moved here first. Any part a project doesn't have yet is copied from the demo, to replace.
 
 The film owns everything else: `src/scene.ts`, `src/edit.json`, `src/timing.ts`, `voice_map.py`, `voice_edit.py`, `sound.py`, `make_lite.py`, `assets/`. The `demo/` folder is the example of all of them. The studio finds them through two names when it bundles: `film/...` is the film's `src/`, `live-studio/edit` is `src/edit.ts` here.
 

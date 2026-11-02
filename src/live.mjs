@@ -6,10 +6,10 @@ import { createServer } from "node:http";
 import { brotliCompressSync, constants as zlibConsts, gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { networkInterfaces } from "node:os";
-import { dirname, extname, join, resolve } from "node:path";
+import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
-import { createVersions } from "./versions.mjs";
+import { createVersions, readJson } from "./versions.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 // The film being opened: its launcher says so, or the folder this runs in. Everything of the film's is under here, everything in this file's folder is the studio's.
@@ -17,8 +17,10 @@ const PROJECT = resolve(process.env.LIVE_PROJECT ?? process.cwd());
 const SRC = join(PROJECT, "src");
 if (!existsSync(join(SRC, "scene.ts"))) { console.error(`${PROJECT} has no src/scene.ts: run this inside a film, or try npm run demo`); process.exit(1); }
 // One copy of three: the film's and the studio's would each otherwise bring their own, and objects from one fail instanceof in the other
-const THREE = [join(PROJECT, "node_modules/three"), join(here, "../node_modules/three")].find((p) => existsSync(p));
-const ALIAS = { film: SRC, "live-studio/edit": join(here, "edit.ts"), three: THREE };
+const THREE_FROM = existsSync(join(PROJECT, "node_modules/three")) ? PROJECT : here;
+// Asked for by name from that folder, not an alias to its path: an alias skips three's exports map, and three/addons, three/webgpu and three/tsl stop resolving
+const oneThree = { name: "one-three", setup(b) { b.onResolve({ filter: /^three(\/|$)/ }, (args) => (args.pluginData?.oneThree ? undefined : b.resolve(args.path, { kind: args.kind, resolveDir: THREE_FROM, pluginData: { oneThree: true } }))); } };
+const ALIAS = { film: SRC, "live-studio/edit": join(here, "edit.ts") };
 const VENV_PYTHON = join(PROJECT, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python");
 const PYTHON = existsSync(VENV_PYTHON) ? VENV_PYTHON : process.platform === "win32" ? "python" : "python3";
 const PUBLIC = join(PROJECT, "assets/public");
@@ -65,7 +67,7 @@ const smallMix = () => {
 let bundle = "";
 const clients = new Set();
 const send = (event, data = "") => { for (const c of clients) c.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
-const versions = createVersions({ project: PROJECT, here, alias: ALIAS, port: PORT, send, esbuild, mixFile: MIX, editFile: EDIT, assetsDir: PUBLIC });
+const versions = createVersions({ project: PROJECT, here, alias: ALIAS, plugins: [oneThree], port: PORT, send, esbuild, squeeze, mixFile: MIX, editFile: EDIT, assetsDir: PUBLIC });
 
 // Notes spoken in the studio: one JSON object per line, so an AI agent can read them. Pictures sit beside them in notes/img
 const NOTES = join(PROJECT, "notes/notes.jsonl");
@@ -94,7 +96,6 @@ const writeNotes = (a) => {
     catch (e) { if (i >= 20) throw e; Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50); }
   }
 };
-const readBody = (req) => new Promise((ok, no) => { const parts = []; req.on("data", (d) => parts.push(d)); req.on("end", () => ok(JSON.parse(Buffer.concat(parts).toString("utf8")))); req.on("error", no); });
 
 const readChoices = () => (existsSync(CHOICES) ? JSON.parse(readFileSync(CHOICES, "utf8")) : {});
 
@@ -132,11 +133,19 @@ const swapIn = async (fresh, target) => {
   console.log("could not replace", target);
   return false;
 };
-const server = createServer(async (req, res) => {
+// No password here, so nothing but this machine and names the film lists may even ask. A website can point its own name at this machine (DNS rebinding) or post to it from the visitor's browser.
+// The list stays in the film: a machine's private name has no place in this public repo
+const HOSTS_FILE = join(PROJECT, ".live_hosts");
+const EXTRA_HOSTS = (existsSync(HOSTS_FILE) ? readFileSync(HOSTS_FILE, "utf8") : "").split(/\s+/).filter(Boolean).map((n) => n.toLowerCase());
+const knownHost = (host) => { const n = (host ?? "").replace(/:\d+$/, "").toLowerCase(); return n === "localhost" || n === "[::1]" || /^\d+\.\d+\.\d+\.\d+$/.test(n) || EXTRA_HOSTS.includes(n); };
+const fromElsewhere = (req) => { try { return !!req.headers.origin && new URL(req.headers.origin).host !== req.headers.host; } catch { return true; } };
+const inside = (root, file) => { const r = relative(root, file); return r && !r.startsWith("..") && !isAbsolute(r); };
+
+const handle = async (req, res) => {
+  if (!knownHost(req.headers.host) || (req.method !== "GET" && fromElsewhere(req))) { res.statusCode = 403; res.end(); return; }
   const url = decodeURIComponent(req.url.split("?")[0]);
   if (url === "/favicon.ico") { res.statusCode = 204; res.end(); return; }
-  // Comparing is an extra: nothing it trips over may take the studio down with it
-  try { if (await versions.route(req, res, url)) return; } catch (e) { console.log("versions:", e.message); if (!res.headersSent) res.statusCode = 500; res.end(); return; }
+  if (await versions.route(req, res, url)) return;
   if (url === "/") { res.setHeader("content-type", "text/html; charset=utf-8"); sendText(req, res, readFileSync(join(here, "studio.html"))); return; }
   if (url === "/notes.json") { res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store"); res.end(JSON.stringify(readNotes())); return; }
   if (url === "/voice_map.json") {
@@ -154,14 +163,14 @@ const server = createServer(async (req, res) => {
     res.setHeader("content-type", "application/json"); sendText(req, res, Buffer.from(JSON.stringify(trials))); return;
   }
   if (req.method === "POST" && url === "/choose") {
-    const { group, set, gain } = await readBody(req);
+    const { group, set, gain } = await readJson(req);
     writeFileSync(CHOICES, JSON.stringify({ ...readChoices(), [group]: { set, gain } }, null, 1) + "\n");
     res.end("ok");
     return;
   }
   if (req.method === "POST" && url === "/notes") {
     try {
-      const { note, img, crop, strip } = await readBody(req);
+      const { note, img, crop, strip } = await readJson(req);
       if (!/^[a-z0-9]+$/.test(note.id)) { res.statusCode = 400; res.end(); return; }
       note.img = img ? `notes/img/${note.id}.jpg` : undefined;
       if (img) writeFileSync(join(NOTE_IMG, `${note.id}.jpg`), Buffer.from(img.split(",")[1], "base64"));
@@ -182,7 +191,7 @@ const server = createServer(async (req, res) => {
   const noteRoute = req.method === "POST" && /^\/notes\/([a-z0-9]+)$/.exec(url);
   if (noteRoute) {
     try {
-      const change = await readBody(req);
+      const change = await readJson(req);
       const all = readNotes();
       let n = all.find((x) => x.id === noteRoute[1]);
       if (n && change.remove) {
@@ -224,7 +233,7 @@ const server = createServer(async (req, res) => {
   if (url === "/mix_small.webm") await smallMix();
   const lite = url.startsWith("/lite/");
   const file = url === "/mix.wav" ? MIX : url === "/mix_small.webm" ? MIX_SMALL : lite ? join(LITE, url.slice(5)) : join(PUBLIC, url);
-  if (!existsSync(file)) { res.statusCode = 404; res.end(); return; }
+  if ((file !== MIX && file !== MIX_SMALL && !inside(lite ? LITE : PUBLIC, file)) || !existsSync(file) || statSync(file).isDirectory()) { res.statusCode = 404; res.end(); return; }
   const { size, mtimeMs } = statSync(file);
   res.setHeader("content-type", MIME[extname(file)] ?? "application/octet-stream");
   res.setHeader("accept-ranges", "bytes");
@@ -240,14 +249,17 @@ const server = createServer(async (req, res) => {
   // Seeking in the sound needs byte ranges
   const m = /bytes=(\d*)-(\d*)/.exec(req.headers.range ?? "");
   if (m) {
-    const a = m[1] ? +m[1] : 0, b = m[2] ? +m[2] : size - 1;
+    const a = m[1] ? +m[1] : 0, b = m[2] ? Math.min(+m[2], size - 1) : size - 1;
+    if (a > b) { res.writeHead(416, { "content-range": `bytes */${size}` }); res.end(); return; } // a page still reading past the end of a mix that got shorter
     res.writeHead(206, { "content-range": `bytes ${a}-${b}/${size}`, "content-length": b - a + 1 });
     streamFile(file, res, { start: a, end: b });
     return;
   }
   res.setHeader("content-length", size);
   streamFile(file, res);
-});
+};
+// One bad request must not take the studio down with it
+const server = createServer((req, res) => handle(req, res).catch((e) => { console.log(`${req.method} ${req.url}: ${e.message}`); if (!res.headersSent) res.statusCode = 400; res.end(); }));
 
 let mixing = false, again = false;
 const remix = () => {
@@ -292,17 +304,20 @@ const debounce = (f, ms) => { let h; return (...a) => { clearTimeout(h); h = set
 // Windows can report a file as changed just because something read it, and every remix restarts the sound on every open page:
 // what counts is whether anything's size or time really moved
 const stamp = (p) => { const s = statSync(p); return s.isDirectory() ? readdirSync(p).map((n) => n + stamp(join(p, n))).join() : `:${s.size}:${s.mtimeMs}`; };
-const soundFiles = [join(PROJECT, "sound.py"), join(SRC, "timing.ts"), join(PUBLIC, "agent/sfx2"), join(PUBLIC, "agent/sfx_try")];
+const soundFiles = [join(PROJECT, "sound.py"), join(SRC, "timing.ts"), join(PUBLIC, "agent/sfx2"), join(PUBLIC, "agent/sfx_try")].filter((f) => existsSync(f));
 const stamps = () => soundFiles.map(stamp).join();
 let soundsSeen = stamps();
 const soundsChanged = debounce(() => { const now = stamps(); if (now !== soundsSeen) { soundsSeen = now; remix(); } }, 300);
 for (const f of soundFiles) watch(f, { recursive: statSync(f).isDirectory() }, soundsChanged);
 if (!existsSync(MIX) || !existsSync(TRIALS)) remix();
 // Windows can report a file as changed just because something read it: only a new take is worth a Whisper run
-let voiceSeen = statSync(VOICE).mtimeMs;
-watch(VOICE, debounce(() => { const now = statSync(VOICE).mtimeMs; if (now !== voiceSeen) { voiceSeen = now; remix(); mapVoice(); } }, 500));
-if (!existsSync(join(LITE, "agent/chars/lead.glb"))) spawn(PYTHON, ["make_lite.py"], { cwd: PROJECT, stdio: "inherit" });
-if (!existsSync(VOICE_MAP) || statSync(VOICE_MAP).mtimeMs < statSync(VOICE).mtimeMs) mapVoice();
+if (existsSync(VOICE)) {
+  let voiceSeen = statSync(VOICE).mtimeMs;
+  watch(VOICE, debounce(() => { const now = statSync(VOICE).mtimeMs; if (now !== voiceSeen) { voiceSeen = now; remix(); mapVoice(); } }, 500));
+  if (!existsSync(VOICE_MAP) || statSync(VOICE_MAP).mtimeMs < statSync(VOICE).mtimeMs) mapVoice();
+}
+if (!existsSync(LITE)) spawn(PYTHON, ["make_lite.py"], { cwd: PROJECT, stdio: "inherit" });
+if (existsSync(PUBLIC)) watch(PUBLIC, { recursive: true }, debounce(() => versions.changed(), 500));
 watch(NOTES, debounce(() => send("notes"), 100)); // Claude ticking a note off shows up here too
 watch(join(here, "studio.html"), debounce(() => send("code"), 100));
 // Voice edits are made in the file: the voice and the mix follow it
@@ -322,15 +337,15 @@ const notify = {
   name: "notify",
   setup(b) {
     b.onEnd((r) => {
-      if (r.errors.length) { const m = r.errors.map((e) => `${e.location?.file}:${e.location?.line} ${e.text}`).join("\n"); console.log(m); send("error-build", m); } else { bundle = r.outputFiles[0].contents; send("code"); console.log("built"); }
+      if (r.errors.length) { const m = r.errors.map((e) => `${e.location?.file}:${e.location?.line} ${e.text}`).join("\n"); console.log(m); send("error-build", m); if (!bundle) bundle = `throw new Error(${JSON.stringify(m)})`; } else { bundle = r.outputFiles[0].contents; send("code"); console.log("built"); }
     });
   },
 };
 const ctx = await esbuild.context({
   absWorkingDir: PROJECT, entryPoints: [join(here, "live_page.ts")], alias: ALIAS, bundle: true, format: "esm", outfile: join(WORK, "live_page.js"), logLevel: "silent", write: false, minifyWhitespace: true, minifySyntax: true,
-  plugins: [editOutsideWatch, notify],
+  plugins: [oneThree, editOutsideWatch, notify],
 });
-await ctx.rebuild();
+await ctx.rebuild().catch(() => {}); // notify has it: the page says what's wrong and comes up when it's fixed
 await ctx.watch();
 await versions.start();
 // This machine only, unless asked: --lan opens it to the network for a phone, and nothing here asks for a password

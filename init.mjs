@@ -2,7 +2,7 @@
 // The film keeps only what is its own, plus three small files that point here. It never holds a copy of the studio,
 // so a fix made here reaches every film at once. A project without a film yet starts from the demo's parts.
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +33,7 @@ const dry = args.includes("--dry");
 const target = args.find((a) => !a.startsWith("--"));
 if (!target) { console.log("usage: node init.mjs PROJECT [--dry]"); process.exit(2); }
 const PROJECT = resolve(target);
+if (realpathSync(PROJECT) === realpathSync(HERE)) { console.error("that's the studio itself: point this at a film"); process.exit(1); }
 const inProject = (f) => join(PROJECT, f);
 const lf = (buf) => buf.toString("utf8").replace(/\r\n/g, "\n");
 
@@ -55,7 +56,7 @@ if (own.length) { console.error(`these hold changes the studio never had; move t
 const say = (what, file) => console.log(`${what.padEnd(9)} ${file}`);
 const write = (file, text) => { if (!dry) { mkdirSync(dirname(inProject(file)), { recursive: true }); writeFileSync(inProject(file), text); } };
 
-if (!existsSync(inProject("src/scene.ts"))) for (const f of STARTER) {
+for (const f of STARTER) {
   if (existsSync(inProject(f))) continue;
   say("starter", f);
   if (!dry) cpSync(join(HERE, "demo", f), inProject(f), { recursive: true });
