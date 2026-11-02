@@ -42,6 +42,16 @@ python notes_report.py --shot 3    # everything about one shot's notes
 
 ## Use it on your own film
 
+Each project keeps its own copy of the studio inside its `src/`, so a clone of the project runs by itself and can change anything it likes:
+
+```bash
+node apply.mjs ../my-film --init   # a new project: the studio plus the demo's parts to replace
+node apply.mjs ../my-film          # later: bring the newest studio in
+node apply.mjs ../my-film --dry    # only say what would happen
+```
+
+`.live-studio.json` in the project records the commit it last took. Updating is a three-way merge against that commit: files the project never touched are replaced, its own changes are kept, and if the same lines changed on both sides the file is left alone and named. Improvements meant for every project are made here, then applied. `--init` never writes over a file that already exists.
+
 Replace `src/scene.ts`. It exports `SHOTS`, `SHOTS_OUT`, `DURATION`, `applyEdit` and `buildScene(canvas, W, H, draft)`, which returns `draw(t)` with `draw.tools` attached. The demo scene shows the whole contract in about 80 lines, and `draw(t)` must be able to draw any moment straight away.
 
 All timing lives in `src/edit.json`, in the voice's original seconds, so that actions follow the words when the voice is re-paced. Replace these with your own:
