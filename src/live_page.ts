@@ -213,6 +213,7 @@ const noteContext = (c) => {
     playing: !!c.wasPlaying, // pressed during playback: what it's about may be a moment earlier
     rate: audio.playbackRate,
     muted: audio.muted || undefined,
+    volume: audio.volume !== 1 ? audio.volume : undefined,
     shot: { from: +SHOTS[c.shot].t.toFixed(3), to: +shotEnd(c.shot).toFixed(3), into: +(c.t - SHOTS[c.shot].t).toFixed(3) },
     voice: {
       word: word?.w,
@@ -245,6 +246,7 @@ const showBox = () => {
   $("where").textContent = old ? `Sửa ghi chú ${compose.time} | shot ${compose.shot}` : whereText(compose);
   $("overwrite").style.display = old ? "flex" : "none";
   $("compose").classList.add("open");
+  setSettings(false);
   listNotes();
 };
 const openNote = (pin) => {
@@ -521,7 +523,7 @@ const followNotes = (jump) => {
   list.scrollTo({ top, behavior: jump || Math.abs(top - list.scrollTop) > 500 ? "auto" : "smooth" }); // a long way is a jump, not a slide past everything
 };
 for (const ev of ["pointerdown", "wheel", "touchmove"]) addEventListener(ev, (e) => { if ($("list").contains(e.target)) listTouched = performance.now(); }, { passive: true });
-const showTab = (tab) => { noteTab = tab; listNotes(); };
+const showTab = (tab) => { noteTab = tab; setSettings(false); listNotes(); };
 const listTabDiff = () => { const n = changes.length; $("tabDiff").hidden = !cmp.on && !n; $("tabDiff").textContent = `Thay đổi (${n})`; $("tabDiff").classList.toggle("on", noteTab === "diff"); };
 const listNotes = () => {
   const open = notes.filter((n) => !n.done).sort((a, b) => noteAt(a) - noteAt(b));
@@ -803,7 +805,7 @@ const setFree = (on) => {
   f.on = on;
   canvas.classList.toggle("free", on);
   $("bFree").style.display = on ? "block" : "none";
-  $("freeB").classList.toggle("on", on);
+  $("freeB").setAttribute("aria-checked", on);
   dirty = true;
 };
 const setFov = (d) => { if (!tools.free.on) return; tools.free.fov = Math.max(8, Math.min(100, tools.free.fov + d)); dirty = true; flash(`ống kính ${tools.free.fov}`); };
@@ -819,7 +821,7 @@ const drawFinal = () => {
 };
 const setFinal = async (on) => {
   finalOn = on;
-  $("finalB").classList.toggle("on", on);
+  $("finalB").setAttribute("aria-checked", on);
   $("bFinal").style.display = on ? "block" : "none";
   if (!on) { $("final").style.display = "none"; return; }
   if (playing) setPlaying(false);
@@ -877,8 +879,10 @@ const playSound = (name, v, when, speed) => {
   sounding.push(src);
   window.__sounds = (window.__sounds ?? 0) + 1;
 };
+let masterLevel = 1;
 const scheduleHits = () => {
-  master.gain.value = audio.muted ? 0 : 1;
+  const level = audio.muted ? 0 : audio.volume;
+  if (masterLevel !== level) { masterLevel = level; master.gain.setTargetAtTime(level, ctx.currentTime, 0.015); } // eased, or a slider drag clicks
   if (!playing || audio.paused || audio.readyState < 3) { if (anchor) silence(); return; }
   const now = audio.currentTime, speed = audio.playbackRate, base = ctx.currentTime - now / speed;
   // A seek shows up as a jump in the sound's clock; small wobble in that clock is ignored, so the rhythm of the presses stays even
@@ -894,7 +898,7 @@ const scheduleHits = () => {
 setInterval(scheduleHits, 50);
 const drawTrial = () => {
   const name = groupName;
-  $("trial").style.display = name ? "block" : "none";
+  $("trial").style.display = name ? "flex" : "none";
   if (!name) return;
   const p = pickOf(name), chosen = trials[name].chosen;
   $("trialOpts").replaceChildren(...trials[name].options.map((o, i) => {
@@ -1286,17 +1290,34 @@ $("next").onclick = () => jump(1);
 $("freeB").onclick = () => setFree(!tools.free.on);
 $("camB").onclick = () => copyCam();
 $("finalB").onclick = () => setFinal(!finalOn);
-$("finalB").hidden = AWAY;
-const setLoop = (on) => { looping = on; window.__loopFrom = on ? t : undefined; $("loopB").classList.toggle("on", on); $("bLoop").style.display = on ? "block" : "none"; };
+$("finalSet").hidden = AWAY;
+const setLoop = (on) => { looping = on; window.__loopFrom = on ? t : undefined; $("loopB").setAttribute("aria-checked", on); $("bLoop").style.display = on ? "block" : "none"; };
 $("loopB").onclick = () => setLoop(!looping);
-const toggleMute = () => { audio.muted = !audio.muted; $("muteB").classList.toggle("on", audio.muted); };
+// Phones leave the level to their own buttons (iOS ignores a page setting it), so there the speaker only mutes
+// A level of 0 counts as muted, and unmuting goes back to the last level that was heard
+let heardLevel = 1;
+const showVolume = () => {
+  $("volIcon").setAttribute("href", audio.muted ? "#i-vol-x" : "#i-vol");
+  $("muteB").setAttribute("aria-pressed", audio.muted);
+  $("volR").value = audio.muted ? 0 : audio.volume;
+  $("volR").setAttribute("aria-valuetext", audio.muted ? "tắt tiếng" : `${Math.round(audio.volume * 100)}%`);
+  try { localStorage.setItem("volume", heardLevel); } catch {}
+};
+const setVolume = (v) => {
+  v = Math.max(0, Math.min(1, Math.round(v * 20) / 20));
+  audio.muted = v === 0;
+  if (v) { audio.volume = v; heardLevel = v; }
+  showVolume();
+};
+const toggleMute = () => { if (audio.muted) setVolume(heardLevel); else { audio.muted = true; showVolume(); } };
+try { const v = Number(localStorage.getItem("volume") ?? 1); if (v > 0 && v <= 1) setVolume(v); } catch {}
+showVolume();
 $("muteB").onclick = toggleMute;
+$("volR").oninput = () => setVolume(Number($("volR").value));
 // Each device remembers its own choice; storage can be missing in a private window, and then captions just stay on
 const showCaptions = (on) => {
   $("caption").hidden = !on;
-  $("capB").textContent = `Phụ đề: ${on ? "bật" : "tắt"}`;
-  $("capB").classList.toggle("on", on);
-  $("capB").setAttribute("aria-pressed", on);
+  $("capB").setAttribute("aria-checked", on);
 };
 let captionsOn = true;
 try { captionsOn = localStorage.getItem("captions") !== "off"; } catch {}
@@ -1306,7 +1327,7 @@ $("capB").onclick = () => {
   showCaptions(captionsOn);
   try { localStorage.setItem("captions", captionsOn ? "on" : "off"); } catch {}
 };
-$("rate").onchange = () => { audio.playbackRate = Number($("rate").value); };
+for (const b of $("rate").children) b.onclick = () => { audio.defaultPlaybackRate = audio.playbackRate = Number(b.dataset.v); for (const o of $("rate").children) o.setAttribute("aria-pressed", o === b); };
 $("copyAll").onclick = () => { navigator.clipboard?.writeText(notes.filter((n) => !n.done).sort((a, b) => a.t - b.t).map((n) => `${whereText(n)}: ${n.text}`).join("\n")); flash("đã chép hết"); };
 const jump = (d) => { const i = shotIndex(t); seek(d < 0 && t - SHOTS[i].t > 0.4 ? SHOTS[i].t : SHOTS[Math.max(0, Math.min(SHOTS.length - 1, i + d))].t); };
 $("noteSave").onclick = () => saveNote();
@@ -1323,12 +1344,30 @@ text.addEventListener("keydown", (e) => {
 $("tabOpen").onclick = () => showTab("open");
 $("tabHist").onclick = () => showTab("history");
 $("tabDiff").onclick = () => showTab("diff");
-$("moreB").onclick = () => { const open = $("more").classList.toggle("open"); $("moreB").classList.toggle("on", open); $("moreB").setAttribute("aria-expanded", open); };
+// Declared, not assigned: opening a note or a tab closes the settings, and that can run before this line
+function setSettings(open) {
+  if (!open && $("more").contains(document.activeElement)) $("moreB").focus();
+  const was = $("side").classList.contains("settings");
+  $("side").classList.toggle("settings", open);
+  $("moreB").setAttribute("aria-expanded", open);
+  if (was && !open) followNotes(true); // the hidden list could not scroll while the playhead moved
+}
+$("moreB").onclick = () => setSettings(!$("side").classList.contains("settings"));
+$("moreClose").onclick = () => setSettings(false);
+// A click leaves no focus behind, so Space stays play; from the keyboard, focus stays and Space presses the control
+$("more").addEventListener("click", (e) => { if (e.detail) e.target.closest("button,summary")?.blur(); });
 // A button keeps the keyboard's focus after a click, and Space would then press it on top of playing
-$("row").addEventListener("click", (e) => e.target.closest("button")?.blur());
+$("row").addEventListener("click", (e) => { if (e.detail) e.target.closest("button")?.blur(); });
+// Arrows belong to a field only when the keyboard put it in focus: after a mouse drag on a slider they still step the film. Chrome calls a clicked slider :focus-visible, so that can't tell
+let pointerAt = 0, keyFocus = null;
+addEventListener("pointerdown", () => { pointerAt = performance.now(); }, true);
+addEventListener("focusin", (e) => { keyFocus = performance.now() - pointerAt > 500 ? e.target : null; });
 addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key;
+  if (k.startsWith("Arrow") && e.target === keyFocus && e.target.matches?.("input,select")) return;
+  if ((k === "ArrowUp" || k === "ArrowDown") && e.target === keyFocus && e.target.closest?.("#list,#moreBody")) return; // the keyboard is walking a list: let it scroll
+  if (k === " " && e.target.closest?.("#more button,#more select,#more input,#more summary")) return;
   if (k === " ") { setPlaying(!playing); }
   else if (k === "ArrowLeft") seek(t - (e.shiftKey ? 5 : 1 / FPS));
   else if (k === "ArrowRight") seek(t + (e.shiftKey ? 5 : 1 / FPS));
@@ -1340,6 +1379,8 @@ addEventListener("keydown", (e) => {
   else if ((k === "g" || k === "G") && !AWAY) setFinal(!finalOn);
   else if (k === "l" || k === "L") setLoop(!looping);
   else if (k === "m" || k === "M") toggleMute();
+  else if (k === "ArrowUp" || k === "ArrowDown") setVolume((audio.muted ? (k === "ArrowUp" ? heardLevel - 0.1 : 0) : audio.volume) + (k === "ArrowUp" ? 0.1 : -0.1));
+  else if (k === "Escape" && $("side").classList.contains("settings")) setSettings(false);
   else if ((k === "b" || k === "B") && !$("cmpB").hidden) setCompare(!cmp.on);
   else if ((k === "v" || k === "V") && cmp.on) flipCompare();
   else if ((k === "z" || k === "Z") && changes.length) nextChange(-1);
