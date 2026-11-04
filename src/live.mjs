@@ -10,6 +10,7 @@ import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
 import { createVersions, readJson } from "./versions.mjs";
+import { nodeBuiltinsEmpty } from "./bundle.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 // The film being opened: its launcher says so, or the folder this runs in. Everything of the film's is under here, everything in this file's folder is the studio's.
@@ -67,7 +68,7 @@ const smallMix = () => {
 let bundle = "";
 const clients = new Set();
 const send = (event, data = "") => { for (const c of clients) c.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
-const versions = createVersions({ project: PROJECT, here, alias: ALIAS, plugins: [oneThree], port: PORT, send, esbuild, squeeze, mixFile: MIX, editFile: EDIT, assetsDir: PUBLIC });
+const versions = createVersions({ project: PROJECT, here, alias: ALIAS, plugins: [oneThree, nodeBuiltinsEmpty], port: PORT, send, esbuild, squeeze, mixFile: MIX, editFile: EDIT, assetsDir: PUBLIC });
 
 // Notes spoken in the studio: one JSON object per line, so an AI agent can read them. Pictures sit beside them in notes/img
 const NOTES = join(PROJECT, "notes/notes.jsonl");
@@ -355,7 +356,7 @@ const notify = {
 };
 const ctx = await esbuild.context({
   absWorkingDir: PROJECT, entryPoints: [join(here, "live_page.ts")], alias: ALIAS, bundle: true, format: "esm", outfile: join(WORK, "live_page.js"), logLevel: "silent", write: false, minifyWhitespace: true, minifySyntax: true,
-  plugins: [oneThree, editOutsideWatch, notify],
+  plugins: [oneThree, nodeBuiltinsEmpty, editOutsideWatch, notify],
 });
 await ctx.rebuild().catch(() => {}); // notify has it: the page says what's wrong and comes up when it's fixed
 await ctx.watch();
