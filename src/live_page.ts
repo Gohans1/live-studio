@@ -1334,7 +1334,8 @@ $("capB").onclick = () => {
 let reviewKey = "";
 const drawReview = () => {
   const box = $("review");
-  if (!reviewOn || !render.describe) { box.hidden = true; reviewKey = ""; return; }
+  // Comparing, each picture is half size and the list would cover it; the changes list says what differs
+  if (!reviewOn || !render.describe || cmp.on) { box.hidden = true; reviewKey = ""; return; }
   let sections;
   try { sections = render.describe(t); } catch (e) { sections = [{ head: "DESCRIBE FAILED", lines: [{ text: String(e?.message ?? e).slice(0, 200) }] }]; }
   const key = JSON.stringify(sections);

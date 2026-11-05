@@ -24,7 +24,7 @@ button.on{background:var(--tint);color:var(--accent)}
 /* Desktop: the film and its timeline on the left, the notes on the right */
 #wrap{display:grid;grid-template:minmax(0,1fr) auto auto/minmax(0,1fr) 360px;height:100%}
 #view{grid-column:1;grid-row:1;min-height:0;min-width:0;display:flex;align-items:center;justify-content:center;position:relative;background:#000}
-#stage{position:relative;background:#000;container-type:size}
+#stage{position:relative;background:#000;container-type:size;overflow:hidden}
 #stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #gl{cursor:crosshair;touch-action:none}#gl.free{cursor:grab}
 #final{display:none;pointer-events:none}
