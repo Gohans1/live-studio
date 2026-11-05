@@ -111,7 +111,7 @@ Written by the studio only, at the film's root (`sound_choices.json` in films th
 
 The creator's notes land in `notes/notes.jsonl` while the studio runs.
 
-1. Read before acting: `python notes_report.py` for the index, `python notes_report.py ID` for one note with its pictures.
+1. Read before acting: `python notes_report.py` for the index, `python notes_report.py ID` for one note with its pictures. Notes come in the order the creator wrote them (#1 first), not film order: a later note often builds on or takes back an earlier one, so read them all in that order before fixing any.
 2. Fix it and check it the way that note asks (look at the frame, listen, run the tests).
 3. Close it: `node node_modules/live-studio/note.mjs done ID "what you changed"`, in Vietnamese and plain words, because the creator reads them under the note. The note folds away under **Đã xong** at the bottom of **Cần sửa**. A note you could not fix stays open: say why in your reply instead.
 

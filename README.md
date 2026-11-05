@@ -41,7 +41,7 @@ Each note in `notes/notes.jsonl` carries the time and frame, the tap position an
 An agent shouldn't read that file raw:
 
 ```bash
-python notes_report.py             # index by shot, one line per note
+python notes_report.py             # index in the order written (#1 first), one line per note
 python notes_report.py ID ID       # everything about those notes, and the pictures to open
 python notes_report.py --shot 3    # everything about one shot's notes
 ```

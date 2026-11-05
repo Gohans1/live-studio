@@ -1,12 +1,14 @@
 """The creator's notes, for the AI about to act on them. Two levels, so a hundred notes never cost a hundred notes' worth of reading:
 
-python notes_report.py                 index of open notes by shot: one line each, enough to plan the round
+python notes_report.py                 index of open notes in the order written (#1 first): one line each, enough to plan the round
 python notes_report.py ID [ID ...]     everything about those notes: the tap, words, actions, version, pictures to open
 python notes_report.py --shot 3        everything about one shot's notes
 Add --done to include fixed notes, --cam to include the camera line (for changing a shot's framing).
 Fixed one: node node_modules/live-studio/note.mjs done ID "what you changed" (docs/film-contract.md, "Notes").
 
-Read the index first, then open the notes you're about to fix, in the order of the film. Open the pictures named there:
+Notes come in the order the creator wrote them, not film order: a later note often builds on, narrows or takes back an earlier
+one ("this", "still", "no, rather"), so read them in that order before fixing any. #N is a note's place in that order and never
+changes. Read the index first, then open the notes you're about to fix. Open the pictures named there:
 "seconds around" first, it's the cheapest way to see the moment; the words alone don't say what was being looked at.
 Notes from before context was saved get their words and actions worked out from today's edit, marked "(today's edit)".
 """
@@ -26,7 +28,14 @@ def load_notes():
     whole = [n for n in notes if all(k in n for k in ("id", "t", "text", "shot", "time"))]
     if len(whole) != len(notes):
         print(f"{len(notes) - len(whole)} malformed notes skipped: see notes/notes.jsonl", file=sys.stderr)
+    # #N counts every note, done ones too, so a note keeps its number as the round goes on
+    for i, n in enumerate(sorted(whole, key=lambda n: n.get("at", ""))):
+        n["n"] = i + 1
     return whole
+
+
+def written(notes):
+    return sorted(notes, key=lambda n: n["n"])
 
 
 def worked_out(n):
@@ -73,22 +82,18 @@ def one_line(n):
     if n.get("done"):
         tags.append("done")
     text = " ".join(n["text"].split())
-    return f"{n['id']} {n['time']}{' [' + ', '.join(tags) + ']' if tags else ''} {text}"
+    return f"#{n['n']} {n['id']} {n['time']} shot {n['shot']}{' [' +', '.join(tags) + ']' if tags else ''} {text}"
 
 
 def index(notes):
-    print(f"{len(notes)} notes. Film now: {film_now()}. Detail: notes_report.py ID ...")
-    shot = None
-    for n in sorted(notes, key=lambda n: n["t"]):
-        if n["shot"] != shot:
-            shot = n["shot"]
-            print(f"\nshot {shot}: {n.get('shotName', '')}")
+    print(f"{len(notes)} notes, in the order written. Film now: {film_now()}. Detail: notes_report.py ID ...\n")
+    for n in written(notes):
         print(one_line(n))
 
 
 def detail(n, cam):
     c = n.get("context")
-    print(f"\n## {n['id']} {n['time']} frame {n.get('frame')}, shot {n['shot']}: {n.get('shotName', '')}{' (DONE)' if n.get('done') else ''}")
+    print(f"\n## #{n['n']} {n['id']} {n['time']} frame {n.get('frame')}, shot {n['shot']}: {n.get('shotName', '')}{' (DONE)' if n.get('done') else ''}")
     print(f"NOTE: {n['text']}")
     for e in n.get("edits", []):
         print(f"earlier wording: {e['was']}")
@@ -156,7 +161,7 @@ def main():
         if a.shot is not None:
             pick = [n for n in pick if n["shot"] == a.shot]
     if a.ids or a.shot is not None:
-        for n in sorted(pick, key=lambda n: n["t"]):
+        for n in written(pick):
             detail(n, a.cam)
     else:
         index(pick)
