@@ -5,14 +5,9 @@ import { AWAY, FPS } from "../engine/env";
 import { loadVersions, nextChange } from "../engine/changes";
 import { openNote } from "../engine/notes";
 import { chooseInGroup } from "../engine/options";
-import { copyCam, jumpShot, moveCam, nudgeVolume, seek, setFinal, setFov, setFree, setLoop, setReview, togglePlay, toggleMute } from "../engine/player";
+import { copyCam, jumpShot, nudgeVolume, seek, setFinal, setFov, setFree, setLoop, setReview, togglePlay, toggleMute } from "../engine/player";
 import { S } from "../engine/state";
 import { get, set, useStudio } from "../engine/store";
-
-const walk = (key: string, fast: boolean) => {
-  const s = fast ? 0.15 : 0.04;
-  moveCam(key === "W" ? s : key === "S" ? -s : 0, key === "D" ? s : key === "A" ? -s : 0, key === "E" ? s : key === "Q" ? -s : 0);
-};
 
 // The keyboard walking a list (the ones marked data-arrow-scroll: notes, settings) scrolls it with Up and Down; everywhere else they set the volume
 const walkingList = (e: KeyboardEvent) => e.target instanceof Element && e.target.matches(":focus-visible") && !!e.target.closest("[data-arrow-scroll]");
@@ -23,7 +18,7 @@ const volumeKey = (up: boolean): UseHotkeyDefinition => ({
 });
 
 export function useStudioHotkeys() {
-  const free = useStudio((s) => s.free), settingsOpen = useStudio((s) => s.settingsOpen);
+  const settingsOpen = useStudio((s) => s.settingsOpen);
   const hasDiff = useStudio((s) => !!s.before || s.changes.length > 0), hasChanges = useStudio((s) => s.changes.length > 0);
   const reviewAvailable = useStudio((s) => s.reviewAvailable);
   const keys: UseHotkeyDefinition[] = [
@@ -52,10 +47,7 @@ export function useStudioHotkeys() {
     // A popup open on top (a "?" or a menu) takes Esc for itself first
     { hotkey: "Escape", callback: () => set({ settingsOpen: false }), options: { enabled: settingsOpen } },
     ...Array.from({ length: 10 }, (_, i) => ({ hotkey: String(i), callback: () => chooseInGroup(i) }) as UseHotkeyDefinition),
-    ...["W", "A", "S", "D", "Q", "E"].flatMap((k) => [
-      { hotkey: k, callback: () => walk(k, false), options: { enabled: free } },
-      { hotkey: `Shift+${k}`, callback: () => walk(k, true), options: { enabled: free } },
-    ] as UseHotkeyDefinition[]),
+    // W A S D Q E walk the free camera while held: app/engine/flight.ts, listened to in player.ts
   ];
   useHotkeys(keys, { preventDefault: true });
 }

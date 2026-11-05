@@ -13,13 +13,26 @@ import { audioCtx, followChips, loadSounds, loadTrials, optionRanges } from "./o
 import { type Elements, type Line, S } from "./state";
 import { get, type Pin, say, set, showError } from "./store";
 import { attachTimeline, drawTimelines, marks, refreshTimes, shotEnd, shotIndex } from "./timeline";
+import { createFlight } from "./flight";
 
 // ---------- Time
 export const render = (x: number) => S.render?.(x);
+// The mix can be shorter than the film: the film grew and its sound wasn't remixed yet. Past the mix's end the picture keeps
+// its own clock, because playing a sound that has ended starts it over from 0, and the picture follows the sound
+const pastMix = (audio: HTMLAudioElement) => Number.isFinite(audio.duration) && S.t >= audio.duration - 0.05;
+// Every place that starts the sound goes through here. False: the picture is past the mix's end and plays on without it
+const startSound = () => {
+  const audio = S.el.audio;
+  if (pastMix(audio)) { audio.pause(); return false; }
+  audio.currentTime = S.t;
+  audio.play().catch(() => {});
+  return true;
+};
 export const seek = (x: number) => {
   S.t = Math.max(0, Math.min(DURATION - 0.01, Math.round(x * FPS) / FPS)); // whole frames, so a time said out loud is a frame that exists
   const audio = S.el.audio;
   if (audio.readyState > 0) audio.currentTime = S.t;
+  if (S.playing && audio.paused && audio.readyState > 0) startSound(); // back inside the mix from past its end
   S.clockStart = performance.now() - S.t * 1000;
   S.dirty = true;
 };
@@ -27,7 +40,7 @@ export const setPlaying = (p: boolean) => {
   S.playing = p;
   set({ playing: p });
   const audio = S.el.audio;
-  if (p) { S.clockStart = performance.now() - S.t * 1000; audio.currentTime = S.t; audio.play().catch(() => {}); audioCtx.resume(); }
+  if (p) { S.clockStart = performance.now() - S.t * 1000; if (!startSound()) say("tiếng ngắn hơn phim: từ đây chỉ có hình, chờ trộn lại tiếng"); audioCtx.resume(); }
   else { audio.pause(); seek(Math.round(S.t * FPS) / FPS); }
 };
 // A code change waits for a stop: the film reloads at the same second
@@ -42,7 +55,7 @@ export const setRate = (r: number) => { const a = S.el.audio; a.defaultPlaybackR
 const setAudio = (url: string) => {
   const audio = S.el.audio;
   audio.src = url;
-  audio.addEventListener("loadedmetadata", () => { audio.currentTime = S.t; if (S.playing) audio.play().catch(() => {}); }, { once: true });
+  audio.addEventListener("loadedmetadata", () => { if (S.playing) startSound(); else audio.currentTime = S.t; }, { once: true });
 };
 // A phone line can stall for seconds: the whole mix comes down once and then plays from memory, so nothing the line does can cut it
 let mixLoad = 0, mixBlob = "";
@@ -74,7 +87,7 @@ const loadWholeMix = async () => {
 };
 const loadMix = () => { if (AWAY) loadWholeMix(); else setAudio(`${MIX_URL}?${Date.now()}`); };
 // The browser can pause the sound by itself (a notification, autoplay rules) while the picture runs on: pick it up where the picture is
-const keepSound = () => { const a = S.el?.audio; if (S.playing && a?.paused && a.readyState > 0) { a.currentTime = S.t; a.play().catch(() => {}); } };
+const keepSound = () => { const a = S.el?.audio; if (S.playing && a?.paused && a.readyState > 0) startSound(); };
 setInterval(keepSound, 1000);
 document.addEventListener("pointerdown", keepSound);
 
@@ -342,6 +355,14 @@ const attachPicture = () => {
   });
   addEventListener("pointerup", () => { camDrag = null; });
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+  // Walking keys, by their place on the keyboard (any layout). Typing a note or a shortcut with Ctrl never walks
+  addEventListener("keydown", (e) => {
+    if (!S.tools?.free.on || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable]")) return;
+    if (flight.press(e.code)) { e.preventDefault(); S.dirty = true; }
+  });
+  addEventListener("keyup", (e) => flight.release(e.code));
+  addEventListener("blur", () => flight.clear()); // a key let go in another window never comes back as a keyup
   canvas.addEventListener("wheel", (e) => { if (!S.tools?.free.on) return; e.preventDefault(); moveCam((e.deltaY > 0 ? -1 : 1) * (e.shiftKey ? 0.03 : 0.12), 0, 0); }, { passive: false });
   // On click, not pointerup: a phone only lets the note box take focus and raise its keyboard from a click
   canvas.addEventListener("click", (e) => {
@@ -432,7 +453,8 @@ export const start = async (el: Elements) => {
 };
 
 const warm = SHOTS.map((_, i) => i).sort((a, b) => Math.abs(SHOTS[a].t - S.t) - Math.abs(SHOTS[b].t - S.t));
-let drawMs = 0, frames = 0, fpsAt = performance.now(), shownShot = -1;
+let drawMs = 0, frames = 0, fpsAt = performance.now(), shownShot = -1, lastFrame = performance.now();
+const flight = createFlight();
 // A film that throws at one moment still lets the dev move to another: the error shows and the next frame comes anyway
 const loop = () => {
   try { frame(); } catch (e) { showError(e); }
@@ -441,12 +463,15 @@ const loop = () => {
 };
 const frame = () => {
   const { audio } = S.el;
+  const dt = Math.min(0.1, (performance.now() - lastFrame) / 1000); // a frame after a stall moves a little, never across the room
+  lastFrame = performance.now();
+  if (S.tools?.free.on) { const d = flight.step(dt); if (d) moveCam(...d); } else flight.clear();
   if (S.playing) {
     // Sound is the clock, so picture and voice can't drift; slow frames are skipped, never delayed.
     // A stalled sound holds the picture: running on would mean jumping back when the sound catches up. Only no sound at all lets the clock run
     const rate = audio.playbackRate;
     if (!audio.paused && audio.readyState > 2) { S.t = audio.currentTime; S.clockStart = performance.now() - (S.t * 1000) / rate; }
-    else if (!audio.src || audio.error) S.t = ((performance.now() - S.clockStart) / 1000) * rate;
+    else if (!audio.src || audio.error || pastMix(audio)) S.t = ((performance.now() - S.clockStart) / 1000) * rate;
     else S.clockStart = performance.now() - (S.t * 1000) / rate;
     if (S.t >= DURATION - 0.02) { S.t = DURATION - 0.02; setPlaying(false); }
     if (get().loop) { const i = shotIndex(window.__loopFrom ?? S.t); if (S.t >= shotEnd(i) - 0.02) seek(SHOTS[i].t); }
