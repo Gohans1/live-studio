@@ -361,12 +361,9 @@ const listen = () => {
   onEvent("contract", loadContract);
   onEvent("edit", loadEdit);
   // Back after the line dropped or the studio restarted: catch up on what changed meanwhile
-  let first = true;
-  onHello((current) => {
-    if (first) { first = false; if (current) return; }
+  onHello((current, reconnect) => {
     if (!current) codeChanged();
-    loadVersions();
-    loadNotes();
+    if (reconnect) { loadVersions(); loadNotes(); }
   });
 };
 

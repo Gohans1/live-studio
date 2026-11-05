@@ -2,7 +2,7 @@
 // keyboard layout; typing in the note box never reaches them
 import { useHotkeys, type UseHotkeyDefinition } from "@tanstack/react-hotkeys";
 import { AWAY, FPS } from "../engine/env";
-import { nextChange } from "../engine/changes";
+import { loadVersions, nextChange } from "../engine/changes";
 import { openNote } from "../engine/notes";
 import { chooseInGroup } from "../engine/options";
 import { copyCam, jumpShot, moveCam, nudgeVolume, seek, setFinal, setFov, setFree, setLoop, setReview, togglePlay, toggleMute } from "../engine/player";
@@ -44,7 +44,7 @@ export function useStudioHotkeys() {
     { hotkey: "L", callback: () => setLoop(!get().loop) },
     { hotkey: "I", callback: () => setReview(!get().review), options: { enabled: reviewAvailable } },
     { hotkey: "M", callback: toggleMute },
-    { hotkey: "B", callback: () => set({ tab: get().tab === "diff" ? "open" : "diff", settingsOpen: false }), options: { enabled: hasDiff } },
+    { hotkey: "B", callback: () => { const diff = get().tab !== "diff"; set({ tab: diff ? "diff" : "open", settingsOpen: false }); if (diff) loadVersions(); }, options: { enabled: hasDiff } },
     { hotkey: "Z", callback: () => nextChange(-1), options: { enabled: hasChanges } },
     { hotkey: "X", callback: () => nextChange(1), options: { enabled: hasChanges } },
     { hotkey: "-", callback: () => setFov(2) },

@@ -139,7 +139,7 @@ export const createApi = (film, { page, events }) => {
   });
 
   app.get("/api/mix.wav", (c) => (existsSync(film.MIX) ? sendFile(c, film.MIX, { store: true }) : c.body(null, 404)));
-  app.get("/api/mix_small.webm", async (c) => { if (!existsSync(film.MIX)) return c.body(null, 404); await film.smallMix(); return sendFile(c, film.MIX_SMALL); });
+  app.get("/api/mix_small.webm", async (c) => { if (!existsSync(film.MIX)) return c.body(null, 404); await film.smallMix(); return existsSync(film.MIX_SMALL) ? sendFile(c, film.MIX_SMALL) : c.body(null, 404); }); // no ffmpeg, no small copy: the page plays the full mix
 
   // The film's own files, last
   app.get("*", (c) => {

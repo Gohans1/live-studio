@@ -17,6 +17,13 @@ export const onEvent = (event: string, run: (data: string) => void) => {
 };
 
 // The build this page came from (src/api.mjs writes it into the page): a "hello" naming another one means the code changed
-// while the line was down, or the studio restarted on new code
+// while the line was down, or the studio restarted on new code. Every connection starts with one; any after the first is a
+// reconnect, and whatever was sent meanwhile is lost. The player listens only once the app has downloaded, usually after the
+// first hello, so the one this page already got is passed to a late listener too
 const built = document.querySelector<HTMLMetaElement>('meta[name="live-build"]')?.content;
-export const onHello = (run: (current: boolean) => void) => onEvent("hello", (build) => run(build === built));
+let hellos = 0, lastBuild = "";
+onEvent("hello", (build) => { hellos++; lastBuild = build; }); // first, so it has counted before any listener below runs
+export const onHello = (run: (current: boolean, reconnect: boolean) => void) => {
+  if (hellos) run(lastBuild === built, false);
+  onEvent("hello", (build) => run(build === built, hellos > 1));
+};

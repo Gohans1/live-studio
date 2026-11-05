@@ -87,7 +87,9 @@ const noteContext = (c: Compose) => {
 interface Outgoing { note: Note; img?: string | null; crop?: string | null; strip?: string | null }
 type Op = { text?: string; remove?: boolean; restore?: boolean; done?: boolean };
 let heldNotes: Outgoing[] | null = null, heldOps: Record<string, Op> | null = null;
-const unsent = (): Outgoing[] => heldNotes ?? JSON.parse(stored.get("unsentNotes") ?? "[]");
+// A queue spoilt on the device (cut short by a full disk, edited by hand) must not stop every later note from sending
+const readQueue = <T,>(key: string, empty: T): T => { try { return JSON.parse(stored.get(key) ?? "null") ?? empty; } catch { return empty; } };
+const unsent = (): Outgoing[] => heldNotes ?? readQueue("unsentNotes", []);
 const keepUnsent = (list: Outgoing[]) => {
   // Storage full: the words matter more than the pictures, the main picture more than the extras. No storage at all: they wait in this page
   for (const slim of [(x: Outgoing) => x, (x: Outgoing) => ({ note: x.note, img: x.img }), (x: Outgoing) => ({ note: x.note })]) {
@@ -95,7 +97,7 @@ const keepUnsent = (list: Outgoing[]) => {
   }
   heldNotes = list;
 };
-const unsentOps = (): Record<string, Op> => heldOps ?? JSON.parse(stored.get("unsentEdits") ?? "{}");
+const unsentOps = (): Record<string, Op> => heldOps ?? readQueue("unsentEdits", {});
 const keepOps = (all: Record<string, Op>) => { heldOps = stored.set("unsentEdits", JSON.stringify(all)) ? null : all; };
 const queueOp = (id: string, op: Op) => keepOps({ ...unsentOps(), [id]: op });
 
