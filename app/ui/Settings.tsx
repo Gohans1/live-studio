@@ -9,15 +9,15 @@ import { Kbd } from "@/components/ui/kbd";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { AWAY, FPS, rangeText } from "../engine/env";
 import { copyAll } from "../engine/notes";
 import { audioCtx, choose, pinPick, setGain, whereNext } from "../engine/options";
-import { copyCam, jumpShot, seek, setCaptions, setFinal, setFree, setLoop, setPlaying, setRate, setReview, setTryOn } from "../engine/player";
+import { copyCam, jumpShot, seek, setCaptions, setFinal, setFree, setLoop, setPlaying, setReview, setTryOn } from "../engine/player";
 import { S } from "../engine/state";
 import { set, useStudio } from "../engine/store";
 import { zoomSpan } from "../engine/timeline";
 import { HelpTip } from "./HelpTip";
+import { Speed } from "./Speed";
 
 const Keys = ({ keys }: { keys: string[] }) => (
   <span aria-hidden className="inline-flex items-center gap-0.5 pointer-coarse:hidden">{keys.map((k) => <Kbd key={k}>{k}</Kbd>)}</span>
@@ -124,7 +124,7 @@ function Footer() {
 
 export function Settings() {
   const s = useStudio(useShallow((x) => ({
-    contract: x.contract, rate: x.rate, captions: x.captions, tryOn: x.tryOn, review: x.review, reviewAvailable: x.reviewAvailable,
+    contract: x.contract, captions: x.captions, tryOn: x.tryOn, review: x.review, reviewAvailable: x.reviewAvailable,
     loop: x.loop, free: x.free, final: x.final, selection: x.selection,
   })));
   // Closing from the keyboard would leave focus on nothing: it goes back to the button that opened the settings
@@ -160,11 +160,7 @@ export function Settings() {
         <Section title="Xem" rows>
           <Row>
             <span className="text-sm whitespace-nowrap">Tốc độ</span>
-            <ToggleGroup value={[String(s.rate)]} onValueChange={(v: string[]) => { if (v[0]) setRate(Number(v[0])); }} aria-label="Tốc độ" spacing={0.5} className="rounded-[10px] bg-background p-0.5">
-              {["0.5", "1", "1.5", "2"].map((v) => (
-                <ToggleGroupItem key={v} value={v} className="h-8 px-2.5 text-sm text-muted-foreground tabular-nums aria-pressed:bg-raised-3 aria-pressed:font-semibold aria-pressed:text-foreground pointer-coarse:h-10">{v}×</ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+            <Speed className="bg-background" item="h-8 pointer-coarse:h-10" />
           </Row>
           <SwitchRow id="captions" label="Phụ đề" checked={s.captions} onChange={setCaptions} />
           <SwitchRow id="try-on" label="Lựa chọn hiện trên hình" checked={s.tryOn} onChange={setTryOn} help="Sắp tới chỗ có đồ vật hay tiếng có nhiều phương án, một ô nhỏ hiện ở góc phải hình. Bấm A, B, C… để đổi ngay, bấm Chốt để phim dùng phương án đó." />

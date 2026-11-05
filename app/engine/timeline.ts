@@ -4,7 +4,7 @@
 // waveform or timeline library models. The studio only reads the timeline; changes are made from notes, in edit.json.
 import { applyEdit, DURATION, SHOTS_OUT as SHOTS } from "film/scene";
 import { EDIT, fromSource, toSource } from "film/edit";
-import { pad, PHONE, stamp, stored } from "./env";
+import { pad, stamp, stored } from "./env";
 import { S } from "./state";
 import { set } from "./store";
 
@@ -21,7 +21,8 @@ let boxes: Box[] = [];
 let selected: { type: "beat"; id: string } | { type: "line"; i: number } | null = null;
 let stuck: [number, number][] = [];
 let overBg: HTMLCanvasElement | null = null;
-let span = Number(stored.get("span", sessionStorage)) || (PHONE ? 14 : 30);
+let span = Number(stored.get("span", sessionStorage)) || Infinity; // the whole film until zoomed in
+const shown = () => Math.min(span, DURATION); // seconds the detail timeline shows
 let frozenCentre: number | null = null;
 // What else the timelines mark, set by the parts that own it
 export const marks = {
@@ -102,7 +103,7 @@ const drawWave = (g: CanvasRenderingContext2D, a: number, b: number, w: number, 
 };
 export const viewCentre = () => {
   const c = frozenCentre ?? S.t;
-  return span >= DURATION ? DURATION / 2 : Math.max(span / 2, Math.min(DURATION - span / 2, c));
+  return shown() >= DURATION ? DURATION / 2 : Math.max(shown() / 2, Math.min(DURATION - shown() / 2, c));
 };
 
 const drawOverview = () => {
@@ -118,15 +119,15 @@ const drawOverview = () => {
   g.drawImage(overBg, 0, 0, w, h);
   for (const ch of marks.changes()) if (ch.from !== null && ch.to !== null) { g.fillStyle = ch.kind === "sound" ? "#D0A215" : "#CE5D97"; g.fillRect((ch.from / DURATION) * w - 1, h - 6, Math.max(3, ((ch.to - ch.from) / DURATION) * w), 6); }
   for (const n of marks.notes()) if (!n.done) { g.fillStyle = "#3AA99F"; g.fillRect((n.t / DURATION) * w - 1, 0, 2, 7); }
-  const a = viewCentre() - span / 2;
-  g.fillStyle = "rgba(255,255,255,.1)"; g.fillRect((a / DURATION) * w, 0, (span / DURATION) * w, h);
+  const a = viewCentre() - shown() / 2;
+  g.fillStyle = "rgba(255,255,255,.1)"; g.fillRect((a / DURATION) * w, 0, (shown() / DURATION) * w, h);
   g.fillStyle = "#DA702C"; g.fillRect((S.t / DURATION) * w - 1, 0, 2, h);
 };
 
 const drawDetail = () => {
   const { g, w, h } = sized(S.el.detail);
-  const a = viewCentre() - span / 2, b = a + span, t = S.t;
-  const X = (s: number) => ((s - a) / span) * w;
+  const v = shown(), a = viewCentre() - v / 2, b = a + v, t = S.t;
+  const X = (s: number) => ((s - a) / v) * w;
   g.fillStyle = "#100F0F"; g.fillRect(0, 0, w, h);
   g.font = `12px ${UI_FONT}`; g.textBaseline = "middle";
   SHOTS.forEach((s, i) => {
@@ -198,7 +199,7 @@ const drawDetail = () => {
   if (!S.voice.lines.length) { g.fillStyle = "#878580"; g.fillText("đang nghe giọng đọc để hiện lời thoại…", 8, 77); }
   // Seconds, with room for each label whatever the screen
   g.fillStyle = "#878580"; g.font = "10px Consolas,monospace";
-  const tick = [1, 2, 5, 10, 30, 60].find((n) => (n / span) * w >= 56) ?? 60;
+  const tick = [1, 2, 5, 10, 30, 60].find((n) => (n / shown()) * w >= 56) ?? 60;
   for (let s = Math.max(0, Math.ceil(a / tick) * tick); s <= b; s += tick) { g.fillRect(X(s), h - 5, 1, 5); g.fillText(`${pad(Math.floor(s / 60))}:${pad(s % 60)}`, X(s) + 3, h - 7); }
   // What changed since the version being compared
   for (const ch of marks.changes()) {
@@ -212,7 +213,7 @@ const drawDetail = () => {
 };
 
 export const drawTimelines = () => { if (!S.el) return; drawOverview(); drawDetail(); };
-export const zoomSpan = (k: number) => { span = Math.max(6, Math.min(DURATION, span * k)); stored.set("span", String(span), sessionStorage); drawTimelines(); };
+export const zoomSpan = (k: number) => { span = Math.max(6, Math.min(DURATION, shown() * k)); stored.set("span", String(span), sessionStorage); drawTimelines(); };
 
 const boxAt = (e: PointerEvent) => {
   const r = S.el.detail.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
@@ -253,7 +254,7 @@ export const attachTimeline = (seek: (x: number) => void, setPlaying: (p: boolea
     describeSelection();
   });
   scrub(over, (e) => { const r = over.getBoundingClientRect(); return ((e.clientX - r.left) / r.width) * DURATION; });
-  scrub(detail, (e) => { const r = detail.getBoundingClientRect(); return viewCentre() - span / 2 + ((e.clientX - r.left) / r.width) * span; });
+  scrub(detail, (e) => { const r = detail.getBoundingClientRect(); return viewCentre() - shown() / 2 + ((e.clientX - r.left) / r.width) * shown(); });
   detail.addEventListener("wheel", (e) => { e.preventDefault(); zoomSpan(e.deltaY > 0 ? 1.2 : 1 / 1.2); }, { passive: false });
   new ResizeObserver(() => { overBg = null; drawTimelines(); }).observe(S.el.timeline);
   window.__editor ??= { boxes: () => boxes, seek, duration: () => DURATION, clear: () => { selected = null; describeSelection(); }, words: () => S.voice.lines.flatMap((l) => l.words.map((w) => w.s)) };
