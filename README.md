@@ -65,6 +65,8 @@ Every film runs the same studio, so a change here affects them all. Saving a pag
 
 Replace `src/scene.ts`. It exports `SHOTS`, `SHOTS_OUT`, `DURATION`, `applyEdit` and `buildScene(canvas, W, H, draft)`, which returns `draw(t)` with `draw.tools` attached. The demo scene shows the whole contract in about 80 lines, and `draw(t)` must be able to draw any moment straight away.
 
+Everything the studio reads from a film, including the optional hooks (the list of what is going on at each frame, looks to switch between, sound options), is in [docs/film-contract.md](docs/film-contract.md). Point the film's `AGENTS.md` at it. The studio checks every film against it on start and on each change, and says what is wrong in its terminal and on the picture.
+
 All timing lives in `src/edit.json`, in the voice's original seconds, so that actions follow the words when the voice is re-paced. Replace these with your own:
 
 | File | Job |

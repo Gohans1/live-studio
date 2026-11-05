@@ -4,5 +4,5 @@
   "type": "module",
   "exports": { "./edit": "./src/edit.ts", "./src/live.mjs": "./src/live.mjs" },
   "scripts": { "demo": "cd demo && node ../src/live.mjs", "test": "node --test" },
-  "dependencies": { "esbuild": "0.28.1", "three": "0.186.1" }
+  "dependencies": { "esbuild": "0.28.1", "three": "0.186.1", "zod": "4.6.7" }
 }

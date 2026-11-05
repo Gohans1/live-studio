@@ -3,6 +3,8 @@
 // Same scene as the render, drawn live, with the sound as the clock. Saving code reloads at the same second.
 import * as THREE from "three";
 import { applyEdit, buildScene, DURATION, SHOTS_OUT as SHOTS } from "film/scene";
+import * as FILM from "film/scene";
+import { checkFilm, problems, Sections } from "./contract.mjs";
 import { EDIT, fromSource, setEdit, toSource } from "film/edit";
 
 const FPS = 30;
@@ -123,7 +125,7 @@ new ResizeObserver(fit).observe($("view"));
 const ray = new THREE.Raycaster();
 const BONE_PARTS = [[/Head|Neck/, "đầu"], [/Left.*Hand|LeftHand/, "bàn tay trái"], [/Right.*Hand|RightHand/, "bàn tay phải"], [/LeftFoot|LeftToe/, "bàn chân trái"], [/RightFoot|RightToe/, "bàn chân phải"], [/LeftForeArm|LeftArm|LeftShoulder/, "tay trái"], [/RightForeArm|RightArm|RightShoulder/, "tay phải"], [/LeftUpLeg|LeftLeg/, "chân trái"], [/RightUpLeg|RightLeg/, "chân phải"], [/Spine|Hips/, "thân"]];
 const shown = (o) => { for (let c = o; c; c = c.parent) if (!c.visible) return false; return true; };
-const owner = (o) => { for (let c = o; c; c = c.parent) { const hit = tools.objects.find(([obj]) => obj === c); if (hit) return hit; } return null; };
+const owner = (o) => { for (let c = o; c; c = c.parent) { const hit = (tools.objects ?? []).find(([obj]) => obj === c); if (hit) return hit; } return null; };
 const whatIs = (hit) => {
   const found = owner(hit.object);
   if (found?.[0] === tools.rig) {
@@ -135,7 +137,7 @@ const whatIs = (hit) => {
   }
   if (found) return found[1];
   const m = [].concat(hit.object.material)[0];
-  const byMat = tools.materials.find(([mat]) => mat === m);
+  const byMat = (tools.materials ?? []).find(([mat]) => mat === m);
   if (byMat) return byMat[1];
   const n = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : null;
   if (n && n.y > 0.7) return "mặt trên một vật";
@@ -152,9 +154,14 @@ const lookAtClick = (x, y) => {
   return { what: whatIs(hit), world: hit.point.toArray().map((v) => +v.toFixed(3)) };
 };
 
-// The camera as a line for SHOTS: what makes this exact frame, with the shot's slow zoom and its head offset taken out
+// The camera as a line for SHOTS: what makes this exact frame, with the shot's slow zoom and its head offset taken out. Only a
+// film whose camera lives in SHOTS (tools.zoomOf and tools.smoother) has such a line; any other gets the camera in world terms
 const camLine = () => {
   const cam = tools.camera, i = shotIndex(t), shot = SHOTS[i];
+  if (!tools.zoomOf || !tools.smoother) {
+    const look = tools.free.on ? tools.free.l : tools.look, r = (v) => v.toArray().map((x) => +x.toFixed(3));
+    return { shot: i, line: `p: [${r(cam.position)}], l: [${r(look)}], fov: ${+cam.fov.toFixed(1)}`, world: { p: r(cam.position), l: r(look) } };
+  }
   const u = (t - shot.t) / (shotEnd(i) - shot.t);
   const look = tools.free.on ? tools.free.l : tools.look;
   const k = tools.zoomOf(i) * (tools.smoother(u) - 0.5);
@@ -1100,6 +1107,28 @@ $("trialGo").onclick = () => {
 };
 $("trialPick").onclick = () => pinPick(groupName);
 
+// ---------- The film contract (contract.mjs, docs/film-contract.md). The server checks the film's files, this page its code;
+// what's wrong shows as a badge and in the settings, and in the studio's terminal for the AI working on the film
+const contract = { files: [], film: [] };
+const showContract = () => {
+  const all = [...contract.files, ...contract.film];
+  $("bContract").style.display = all.length ? "block" : "none";
+  $("bContract").textContent = `PHIM SAI QUY ƯỚC (${all.length}), XEM ⋯`;
+  $("contractSet").hidden = !all.length;
+  $("contractText").textContent = all.join("\n\n");
+};
+const reportFilm = (list) => {
+  contract.film = list;
+  showContract();
+  jsonPost("/contract", { problems: list }).catch(() => {});
+};
+const loadContract = async () => {
+  const r = await fetch("/contract.json").catch(() => null);
+  if (!r?.ok) return;
+  contract.files = (await r.json()).files;
+  showContract();
+};
+
 // ---------- Main loop
 async function main() {
   $("load").textContent = "đang dựng căn phòng…";
@@ -1130,6 +1159,8 @@ async function main() {
   sessionStorage.removeItem("loadTries");
   if (AWAY) loadWholeMix();
   tools = render.tools;
+  reportFilm(checkFilm(FILM, render));
+  loadContract();
   $("revSet").hidden = !render.describe;
   $("load").textContent = "";
   flash(`dựng xong trong ${((performance.now() - t0) / 1000).toFixed(1)}s`);
@@ -1355,6 +1386,7 @@ const drawReview = () => {
   if (!reviewOn || !render.describe) { box.hidden = true; reviewKey = ""; return; }
   let sections;
   try { sections = render.describe(t); } catch (e) { sections = [{ head: "DESCRIBE FAILED", lines: [{ text: String(e?.message ?? e).slice(0, 200) }] }]; }
+  if (!drawReview.checked) { drawReview.checked = true; const p = problems(Sections, sections, "draw.describe(t) result"); if (p.length) { reportFilm([...contract.film, ...p]); return; } }
   const key = JSON.stringify(sections);
   box.hidden = false;
   if (key === reviewKey) return;
@@ -1463,6 +1495,7 @@ events.addEventListener("versions", () => loadVersions());
 let eventsOpened = false;
 events.addEventListener("open", () => { if (eventsOpened) loadVersions(); eventsOpened = true; });
 events.addEventListener("voice", loadVoice);
+events.addEventListener("contract", loadContract);
 events.addEventListener("edit", async () => { const fresh = await (await fetch("/edit.json")).json(); if (JSON.stringify(fresh) !== snapshotEdit()) { setEdit(fresh); refreshTimes(); } });
 if (!AWAY) audio.src = MIX_URL; // on a phone line the room comes first, or the sound eats the bandwidth while the picture stays black
 main();

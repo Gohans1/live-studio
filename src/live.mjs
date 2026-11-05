@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
 import { createVersions, readJson } from "./versions.mjs";
 import { nodeBuiltinsEmpty } from "./bundle.mjs";
+import { checkFiles, Choices, DOC, Edit, problems, Trials } from "./contract.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 // The film being opened: its launcher says so, or the folder this runs in. Everything of the film's is under here, everything in this file's folder is the studio's.
@@ -101,6 +102,19 @@ const writeNotes = (a) => {
 
 const readChoices = () => (existsSync(CHOICES) ? JSON.parse(readFileSync(CHOICES, "utf8")) : {});
 
+// The film's files against the contract (contract.mjs). Said once when it changes, in this terminal and to the pages; the
+// page adds what it finds in the film's code (POST /contract)
+const textOf = (f) => (existsSync(f) ? readFileSync(f, "utf8") : undefined);
+let fileProblems = null, pageProblems = null; // null: the first check says "ok" too
+const sayContract = (what, list) => console.log(list.length ? `\nfilm contract, ${what} (see ${DOC}):\n${list.join("\n\n")}\n` : `film contract, ${what}: ok`);
+const checkContract = () => {
+  const now = checkFiles({ "src/edit.json": [Edit, textOf(EDIT)], "renders/live/trials.json (from sound.py)": [Trials, textOf(TRIALS)], [CHOICES.slice(PROJECT.length + 1)]: [Choices, textOf(CHOICES)] });
+  if (JSON.stringify(now) === JSON.stringify(fileProblems)) return;
+  fileProblems = now;
+  sayContract("files", now);
+  send("contract");
+};
+
 const VOICE_MAP = join(WORK, "voice_map.json");
 const VOICE = join(PUBLIC, "agent/full_voice.wav");
 let mapping = false;
@@ -172,7 +186,19 @@ const handle = async (req, res) => {
   if (url === "/choices.json") { res.setHeader("content-type", "application/json"); sendText(req, res, Buffer.from(JSON.stringify(readChoices()))); return; }
   if (req.method === "POST" && url === "/choose") {
     const { group, set, gain } = await readJson(req);
-    writeFileSync(CHOICES, JSON.stringify({ ...readChoices(), [group]: { set, gain } }, null, 1) + "\n");
+    const next = { ...readChoices(), [group]: { set, gain } };
+    if (typeof group !== "string" || problems(Choices, next, "choice").length) { res.statusCode = 400; res.end(); return; }
+    writeFileSync(CHOICES, JSON.stringify(next, null, 1) + "\n");
+    checkContract();
+    res.end("ok");
+    return;
+  }
+  if (url === "/contract.json") { res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store"); res.end(JSON.stringify({ files: fileProblems })); return; }
+  if (req.method === "POST" && url === "/contract") {
+    const { problems: list } = await readJson(req);
+    if (!Array.isArray(list) || !list.every((x) => typeof x === "string")) { res.statusCode = 400; res.end(); return; }
+    const now = list.map((x) => x.slice(0, 4000)).slice(0, 50);
+    if (JSON.stringify(now) !== JSON.stringify(pageProblems)) { pageProblems = now; sayContract("code, found by the page", now); }
     res.end("ok");
     return;
   }
@@ -282,7 +308,7 @@ const remix = () => {
     if (!code) await swapIn(fresh, MIX);
     mixing = false;
     console.log(code ? "sound mix failed" : `sound mixed in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (!code) { send("sound"); versions.changed(); }
+    if (!code) { send("sound"); versions.changed(); checkContract(); }
     if (again) { again = false; remix(); }
   });
 };
@@ -333,7 +359,7 @@ watch(join(here, "studio.html"), debounce(() => send("code"), 100));
 // Voice edits are made in the file: the voice and the mix follow it
 const voiceEdits = () => { try { return JSON.stringify(JSON.parse(readFileSync(EDIT, "utf8")).voice.edits); } catch { return null; } };
 let editsSeen = voiceEdits();
-watch(EDIT, debounce(() => { send("edit"); versions.changed(); const now = voiceEdits(); if (now !== null && now !== editsSeen) { editsSeen = now; editVoice(); } }, 100));
+watch(EDIT, debounce(() => { send("edit"); versions.changed(); checkContract(); const now = voiceEdits(); if (now !== null && now !== editsSeen) { editsSeen = now; editVoice(); } }, 100));
 
 // The edit file is read fresh by the page, so saving it must not reload the page: esbuild isn't told to watch it
 const editOutsideWatch = {
@@ -363,6 +389,7 @@ const ctx = await esbuild.context({
 await ctx.rebuild().catch(() => {}); // notify has it: the page says what's wrong and comes up when it's fixed
 await ctx.watch();
 // This machine only, unless asked: --lan opens it to the network for a phone, and nothing here asks for a password
+checkContract();
 const LAN = process.argv.includes("--lan");
 server.listen(PORT, LAN ? "0.0.0.0" : "127.0.0.1", () => {
   console.log(`live at http://localhost:${PORT}`);
