@@ -145,14 +145,14 @@ export function NoteList() {
         onTouchMove={() => { touched.current = performance.now(); }}
       >
         {tab === "open" && (open.length ? open.map((n) => <NoteCard key={n.id} note={n} near={n.id === nearNote} editing={n.id === editing} />) : <Empty>{old.length ? "Hết việc cần sửa" : "Chưa có ghi chú"}</Empty>)}
-        {/* Folded by default: they are answered, and the list is for what still needs doing */}
-        {tab === "open" && old.length > 0 && (
+        {/* Folded by default: they are answered, and the list is for what still needs doing. Shown at 0 too, so the creator knows where fixed notes will go */}
+        {tab === "open" && notes.length > 0 && (
           <details className="group mt-2 flex-none">
             <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-[10px] px-2.5 text-[13px] font-semibold text-muted-foreground hover:bg-card hover:text-foreground [&::-webkit-details-marker]:hidden">
               <span aria-hidden className="mx-0.5 size-1.5 -rotate-45 border-r-[1.5px] border-b-[1.5px] border-current group-open:rotate-45" />
               Đã xong ({old.length})
             </summary>
-            <div className="mt-1.5 flex flex-col gap-1.5">{old.map((n) => <DoneCard key={n.id} note={n} />)}</div>
+            <div className="mt-1.5 flex flex-col gap-1.5">{old.length ? old.map((n) => <DoneCard key={n.id} note={n} />) : <p className="px-2.5 text-[13px] text-muted-foreground">Chưa có ghi chú nào xong. AI sửa xong ghi chú nào thì ghi chú đó chuyển xuống đây.</p>}</div>
           </details>
         )}
         {tab === "diff" && (changes.length ? changes.map((c, i) => <ChangeCard key={`${c.title}${c.from}${i}`} change={c} near={i === nearChange} />) : <Empty>{emptyWords()}</Empty>)}
