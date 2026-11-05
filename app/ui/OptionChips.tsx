@@ -46,7 +46,11 @@ function Chip({ group: g, range }: { group: GroupView; range: [number, number] }
           })}
         </ToggleGroup>
         {g.pick !== g.chosen && (
-          <Button className="min-h-7.5 px-2 text-[13px] font-semibold upright:min-h-7 upright:text-xs" onClick={() => pinPick(g.name)} aria-label={`Chốt ${now.title} cho ${g.title}`}>Chốt</Button>
+          <Button className="min-h-7.5 px-2 text-[13px] font-semibold upright:min-h-7 upright:text-xs" onClick={(e) => {
+            // This button goes once the pick is saved: from the keyboard, focus moves to the pick that stays instead of the page
+            if (!e.detail) e.currentTarget.closest("[role=group]")?.querySelector<HTMLElement>("[aria-pressed=true]")?.focus();
+            pinPick(g.name);
+          }} aria-label={`Chốt ${now.title} cho ${g.title}`}>Chốt</Button>
         )}
       </div>
     </div>

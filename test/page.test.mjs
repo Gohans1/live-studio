@@ -52,6 +52,8 @@ test("a broken save keeps the last page and says why; fixing it reloads", async 
   assert.equal(page.html(), before);
   assert.equal(heard.length, 1);
   assert.match(heard[0], /^error /);
+  assert.match(heard[0], /scene\.ts/);
+  assert.doesNotMatch(heard[0], /\u001b/, "the page shows this as text: no terminal colour codes");
   await save(good);
   assert.deepEqual(heard.slice(1), ["change"]);
   heard.length = 0;

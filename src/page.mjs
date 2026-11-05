@@ -4,6 +4,7 @@
 // phone's connection drops each time its screen locks.
 import { readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import { constants } from "node:zlib";
 import { build } from "vite";
 import { compression, defineAlgorithm } from "vite-plugin-compression2";
@@ -19,6 +20,7 @@ export const buildPage = (film, { onChange = () => {}, onError = () => {} } = {}
   // One per film, since several films run this studio at once
   const dir = join(film.PROJECT, "node_modules/.vite/live-studio-page");
   let html = null, error = null, started = false;
+  const warned = new Set();
   // Every build writes all its files again, unchanged ones too, so a file's age on disk is the time since a build last used it
   const clearOld = () => {
     const code = join(dir, ASSETS), now = Date.now();
@@ -41,7 +43,11 @@ export const buildPage = (film, { onChange = () => {}, onError = () => {} } = {}
       assetsDir: ASSETS,
       sourcemap: true,
       // Names kept: a film that throws shows its stack in the page and in this terminal, where no source map reaches
-      rolldownOptions: { output: { minify: { mangle: false } } },
+      rolldownOptions: {
+        output: { minify: { mangle: false } },
+        // Each warning once per run: a film's Node libraries would otherwise repeat theirs on every save
+        onLog: (level, log, show) => { if (level !== "warn" || !warned.has(log.message)) { if (level === "warn") warned.add(log.message); show(level, log); } },
+      },
       reportCompressedSize: false,
       chunkSizeWarningLimit: Infinity,
       // edit.json is read fresh by the page (GET /api/edit.json), so saving it must not rebuild and reload anything
@@ -52,7 +58,7 @@ export const buildPage = (film, { onChange = () => {}, onError = () => {} } = {}
     watcher.on("event", (e) => {
       e.result?.close?.();
       if (e.code === "ERROR") {
-        error = e.error.message;
+        error = stripVTControlCharacters(e.error.message); // the page shows it as text, and Rolldown colours it for a terminal
         onError(error);
         start(); // the page answers with the error until a save fixes it
       }

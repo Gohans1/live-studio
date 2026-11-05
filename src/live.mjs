@@ -18,7 +18,7 @@ try { film = openFilm(process.env.LIVE_PROJECT ?? process.cwd(), { send }); } ca
 
 const page = await buildPage(film, {
   onChange: () => { send("code"); film.versions.changed(); },
-  onError: (message) => { console.log(message); send("build-error", message); },
+  onError: (message) => send("build-error", message), // Vite prints it in this terminal itself
 });
 
 // No password here, so nothing but this machine and names the film lists may even ask. A website can point its own name at

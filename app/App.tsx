@@ -17,10 +17,12 @@ let started = false;
 // so Space presses the control as usual. A popup trigger keeps focus while its popup is open: the popup needs it
 const dropClickFocus = (e: MouseEvent) => {
   if (!e.detail) return;
-  const hit = (e.target as Element).closest?.("button, summary, [role=tab]");
-  if (!(hit instanceof HTMLElement)) return;
-  // React has already drawn the click's result here, so a trigger whose popup this click closed shows aria-expanded="false"
-  if (!hit.matches("[aria-haspopup][aria-expanded=true]")) hit.blur();
+  // Judged once the browser is done with the click: a label passes it on to its switch, which takes focus only then. By that
+  // time React has drawn the result too, so a trigger whose popup this click closed shows aria-expanded="false"
+  setTimeout(() => {
+    const at = document.activeElement;
+    if (at instanceof HTMLElement && at.matches("button, summary, [role=tab], [role=switch], [role=checkbox], [role=radio]") && !at.matches("[aria-haspopup][aria-expanded=true]")) at.blur();
+  });
 };
 
 export function App() {
