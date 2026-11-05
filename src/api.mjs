@@ -4,7 +4,8 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { extname, isAbsolute, join, relative } from "node:path";
 import { Readable } from "node:stream";
-import { brotliCompressSync, constants as zlibConsts, gzipSync } from "node:zlib";
+import { promisify } from "node:util";
+import { brotliCompress, constants as zlibConsts, gzip } from "node:zlib";
 import { zValidator } from "@hono/zod-validator";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
@@ -26,37 +27,45 @@ const Choose = z.object({ group: z.string().min(1), set: z.string(), gain: z.num
 const PageProblems = z.object({ problems: z.array(z.string()) });
 const Seen = z.object({ id: z.string() });
 
+// Formats that are compressed inside already: trying them again only costs time on a first visit
+const PACKED = /\.(png|jpe?g|webp|avif|gif|webm|mp3|mp4|m4a|ogg|opus|flac|woff2|ktx2)$/i;
+const PACK_MAX = 16 * 1024 * 1024; // bigger is held in memory per version: slim it in the film instead
 const inside = (root, file) => { const r = relative(root, file); return r && !r.startsWith("..") && !isAbsolute(r); };
 
 export const createApi = (film, { page, events }) => {
-  // Text and geometry shrink a lot and pictures don't. Squeezed once per version, so the next visit costs nothing here either
-  const packed = new Map();
-  const squeeze = (c, buf, tag) => {
+  // Text and geometry shrink a lot and pictures don't. Squeezed once per version, so the next visit costs nothing here either;
+  // what barely shrinks (a zip of pictures) is remembered as not worth it and goes out as it is
+  // Off the main thread (a few MB takes a second), and kept as the promise so a second visit meanwhile waits for the same work
+  const packed = new Map(), toBr = promisify(brotliCompress), toGzip = promisify(gzip);
+  const squeeze = async (c, buf, tag) => {
     const accepts = c.req.header("accept-encoding") ?? "", how = /\bbr\b/.test(accepts) ? "br" : /gzip/.test(accepts) ? "gzip" : "";
     c.header("vary", "accept-encoding");
     if (!how) return buf;
     const key = how + tag;
     if (!packed.has(key)) {
       if (packed.size > 400) packed.clear();
-      packed.set(key, how === "br" ? brotliCompressSync(buf, { params: { [zlibConsts.BROTLI_PARAM_QUALITY]: 9 } }) : gzipSync(buf));
+      const work = how === "br" ? toBr(buf, { params: { [zlibConsts.BROTLI_PARAM_QUALITY]: 9 } }) : toGzip(buf);
+      packed.set(key, work.then((small) => (small.length < buf.length * 0.9 ? small : null)));
     }
+    const small = await packed.get(key);
+    if (!small) return buf;
     c.header("content-encoding", how);
-    return packed.get(key);
+    return small;
   };
   // Unchanged means no download, and asking costs a few bytes
-  const text = (c, buf, type = "application/json") => {
+  const text = async (c, buf, type = "application/json") => {
     const tag = `"${createHash("md5").update(buf).digest("base64url")}"`;
     c.header("etag", tag);
     c.header("cache-control", "no-cache");
     if (c.req.header("if-none-match") === tag) return c.body(null, 304);
     c.header("content-type", type);
-    return c.body(squeeze(c, buf, tag));
+    return c.body(await squeeze(c, buf, tag));
   };
   const fresh = (c, data) => { c.header("cache-control", "no-store"); return c.json(data); };
   const fileOrMissing = (c, file) => (existsSync(file) ? text(c, readFileSync(file)) : c.body(null, 404));
 
   // A film file, with byte ranges (seeking in the sound needs them) and an etag so a reload on a phone fetches nothing again
-  const sendFile = (c, file, { store = false, pack = false } = {}) => {
+  const sendFile = async (c, file, { store = false, pack = false } = {}) => {
     const { size, mtimeMs } = statSync(file);
     c.header("content-type", MIME[extname(file)] ?? "application/octet-stream");
     c.header("accept-ranges", "bytes");
@@ -67,7 +76,7 @@ export const createApi = (film, { page, events }) => {
       c.header("etag", tag);
       c.header("cache-control", "no-cache"); // a re-made copy shows up at once
       if (c.req.header("if-none-match") === tag && !range) return c.body(null, 304);
-      if (pack && !range) return c.body(squeeze(c, readFileSync(file), tag));
+      if (pack && !range && size <= PACK_MAX) return c.body(await squeeze(c, readFileSync(file), tag));
     }
     const m = /bytes=(\d*)-(\d*)/.exec(range ?? "");
     if (m) {
@@ -152,7 +161,7 @@ export const createApi = (film, { page, events }) => {
     const root = lite ? film.LITE : film.PUBLIC;
     const file = join(root, lite ? url.slice(5) : url);
     if (!inside(root, file) || !existsSync(file) || statSync(file).isDirectory()) return c.body(null, 404);
-    return sendFile(c, file, { pack: lite && /\.(bin|glb|gltf)$/.test(file) });
+    return sendFile(c, file, { pack: !PACKED.test(file) });
   });
   app.onError((e, c) => { console.log(`${c.req.method} ${c.req.path}: ${e.message}`); return e instanceof HTTPException ? e.getResponse() : c.body(null, 500); }); // one bad request must not take the studio down, and a page keeps a note it could not save and tries again
   return app;

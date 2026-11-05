@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -227,6 +228,16 @@ describe("the server", () => {
     assert.equal(await status("/api/choose", { method: "POST", body: "not json" }), 400);
     assert.equal(await status("/api/mix.wav", { headers: { range: "bytes=999999999999-" } }), 416);
     assert.equal(await status("/api/notes"), 200);
+  });
+  test("compresses a film's data files when that helps, and sends what is already packed as it is", async () => {
+    const pub = join(REPO, "demo/assets/public");
+    writeFileSync(join(pub, "test_pack.json"), JSON.stringify(Array.from({ length: 5000 }, (_, i) => ({ block: "stone_bricks", i }))));
+    writeFileSync(join(pub, "test_random.bin"), randomBytes(200e3));
+    try {
+      const sent = async (path) => (await ask(path, { headers: { "accept-encoding": "br, gzip" } })).headers["content-encoding"];
+      assert.equal(await sent("/test_pack.json"), "br");
+      assert.equal(await sent("/test_random.bin"), undefined);
+    } finally { for (const f of ["test_pack.json", "test_random.bin"]) rmSync(join(pub, f), { force: true }); }
   });
   test("still answers the old paths the films' own scripts call (checkpoint.py, publish_pages.py)", async () => {
     // A missing note changes nothing, so this writes nothing into the demo
