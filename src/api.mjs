@@ -79,13 +79,6 @@ export const createApi = (film) => {
   };
 
   const app = new Hono();
-  // Another site can't load the film as a script, or show the studio in a frame to steal clicks
-  app.use(async (c, next) => {
-    await next();
-    c.header("cross-origin-resource-policy", "same-origin");
-    c.header("content-security-policy", "frame-ancestors 'self'");
-    c.header("x-content-type-options", "nosniff");
-  });
   app.use("/api/*", bodyLimit({ maxSize: 20 * 1024 * 1024 }));
 
   app.get("/api/notes", (c) => fresh(c, film.notes.read()));

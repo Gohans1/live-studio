@@ -165,12 +165,29 @@ describe("the server", () => {
   test("reads nothing outside the film", async () => {
     for (const path of ["/../package.json", "/..%2f..%2f..%2fpackage.json", "/..%5c..%5c..%5cpackage.json", "/lite/..%2f..%2f..%2f..%2fpackage.json"]) assert.equal(await status(path), 404, path);
   });
+  test("serves the film's code, never its notes, renders or private names", async () => {
+    const film = `/@fs/${join(REPO, "demo").replaceAll("\\", "/")}`;
+    assert.equal(await status(`${film}/src/scene.ts`), 200);
+    for (const path of ["notes/notes.jsonl", "renders/live/mix_dry.wav", ".live_hosts"]) assert.notEqual(await status(`${film}/${path}`), 200, path);
+  });
   test("refuses other sites", async () => {
     assert.equal(await status("/api/notes", { headers: { host: "evil.example.com" } }), 403);
     assert.equal(await status("/api/seen", { method: "POST", headers: { origin: "https://evil.example.com" }, body: "{}" }), 403);
     const res = await ask("/api/notes");
     assert.equal(res.headers["cross-origin-resource-policy"], "same-origin");
     assert.match(res.headers["content-security-policy"], /frame-ancestors 'self'/);
+  });
+  test("sends the page's code compressed, with the same guard headers as the notes", async () => {
+    const res = await ask("/@vite/client", { headers: { "accept-encoding": "gzip, br" } });
+    assert.equal(res.statusCode, 200);
+    assert.ok(["br", "gzip"].includes(res.headers["content-encoding"]), `sent as ${res.headers["content-encoding"]}`);
+    assert.equal(res.headers["cross-origin-resource-policy"], "same-origin");
+    assert.equal(res.headers["x-content-type-options"], "nosniff");
+  });
+  test("a byte range of the sound comes back as those bytes, never compressed", async () => {
+    const res = await ask("/api/mix.wav", { headers: { range: "bytes=0-99", "accept-encoding": "gzip, br" } });
+    assert.ok([206, 404].includes(res.statusCode), `status ${res.statusCode}`);
+    assert.equal(res.headers["content-encoding"], undefined);
   });
   test("answers bad requests and stays up", async () => {
     assert.equal(await status("/%"), 400);

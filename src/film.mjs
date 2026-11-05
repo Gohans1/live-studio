@@ -16,7 +16,7 @@ const debounce = (f, ms) => { let h; return (...a) => { clearTimeout(h); h = set
 export const openFilm = (projectDir, { send }) => {
   const PROJECT = resolve(projectDir);
   const SRC = join(PROJECT, "src");
-  if (!existsSync(join(SRC, "scene.ts"))) throw new Error(`${PROJECT} has no src/scene.ts: run this inside a film, or try npm run demo`);
+  if (!existsSync(join(SRC, "scene.ts"))) throw new Error(`${PROJECT} has no src/scene.ts: run this inside a film, or try bun run demo`);
   const VENV_PYTHON = join(PROJECT, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python");
   const PYTHON = existsSync(VENV_PYTHON) ? VENV_PYTHON : process.platform === "win32" ? "python" : "python3";
   const PUBLIC = join(PROJECT, "assets/public");

@@ -1,6 +1,6 @@
 // Settings take the notes' place in the side column, so the film and the timeline never move. Heavy or slow options sit in
 // their own warned section; every option whose name doesn't explain itself has a "?"
-import { X } from "lucide-react";
+import X from "lucide-react/icons/x";
 import { type ReactNode, useLayoutEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
@@ -55,7 +55,7 @@ function Options() {
     if (!S.playing) setPlaying(true);
   };
   return (
-    <Section title={<>Lựa chọn <Keys keys={["0", "–", "9"]} /></>} help={["Lựa chọn", "Mỗi nhóm là một đồ vật hay một tiếng có nhiều phương án. Chọn một phương án là thấy, nghe ngay. Xem hoặc Nghe: nhảy tới chỗ có nó và phát. Chốt: phim, cả bản final, dùng phương án này (ghi vào choices.json). Chốt lại phương án khác lúc nào cũng được."]}>
+    <Section title={<>Lựa chọn <span aria-hidden className="inline-flex items-center gap-0.5 pointer-coarse:hidden"><Kbd>0</Kbd>–<Kbd>9</Kbd></span></>} help={["Lựa chọn", "Mỗi nhóm là một đồ vật hay một tiếng có nhiều phương án. Chọn một phương án là thấy, nghe ngay. Xem hoặc Nghe: nhảy tới chỗ có nó và phát. Chốt: phim, cả bản final, dùng phương án này (ghi vào choices.json). Chốt lại phương án khác lúc nào cũng được."]}>
       <Select items={items} value={groupName} onValueChange={(v) => { set({ groupName: v as string }); S.dirty = true; }}>
         <SelectTrigger className="mb-1 h-9 w-full" aria-label="Nhóm lựa chọn"><SelectValue /></SelectTrigger>
         <SelectContent>{items.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent>
@@ -105,7 +105,7 @@ const KEYS: [ReactNode, ReactNode][] = [
   [<><Kbd>Z</Kbd><Kbd>X</Kbd></>, "chỗ đổi trước, sau"],
   [<Kbd>F</Kbd>, <>camera tự do: kéo lia, lăn tiến lùi, chuột phải dời, Shift+kéo xoay quanh, <Kbd>W</Kbd><Kbd>A</Kbd><Kbd>S</Kbd><Kbd>D</Kbd><Kbd>Q</Kbd><Kbd>E</Kbd> đi, <Kbd>-</Kbd><Kbd>=</Kbd> ống kính</>],
   [<><Kbd>K</Kbd> <Kbd>G</Kbd></>, "chép góc máy; xem final"],
-  [<><Kbd>0</Kbd>–<Kbd>9</Kbd></>, "đổi tiếng đang thử"],
+  [<><Kbd>0</Kbd>–<Kbd>9</Kbd></>, "chọn phương án của nhóm đang hiện"],
   [<Kbd>Esc</Kbd>, "đóng cài đặt"],
 ];
 

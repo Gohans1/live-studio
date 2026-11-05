@@ -6,6 +6,7 @@ import { networkInterfaces } from "node:os";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getRequestListener } from "@hono/node-server";
+import compression from "compression";
 import { createServer as createVite } from "vite";
 import { createApi } from "./api.mjs";
 import { openFilm, STUDIO } from "./film.mjs";
@@ -38,16 +39,24 @@ const page = async (req, res) => {
     const html = await vite.transformIndexHtml(req.url, await readFile(join(STUDIO, "app/index.html"), "utf8"));
     res.setHeader("content-type", "text/html; charset=utf-8");
     res.setHeader("cache-control", "no-cache");
-    res.setHeader("content-security-policy", "frame-ancestors 'self'");
     res.end(html);
   } catch (e) { vite.ssrFixStacktrace(e); res.statusCode = 500; res.end(e.message); }
 };
+// Vite's dev server sends code uncompressed, about 25 MB on a phone's first visit. The API squeezes its own files, and a byte
+// range of a file must come back as those bytes
+const compress = compression({ filter: (req, res) => !req.headers.range && compression.filter(req, res) });
 http.on("request", (req, res) => {
   if (!knownHost(req.headers.host) || (req.method !== "GET" && req.method !== "HEAD" && fromElsewhere(req))) { res.statusCode = 403; res.end(); return; }
   try { decodeURI(req.url); } catch { res.statusCode = 400; res.end(); return; } // a path no file can have, before Vite or Hono trip on it
+  // Another site can't load the film as a script, or show the studio in a frame to steal clicks
+  res.setHeader("cross-origin-resource-policy", "same-origin");
+  res.setHeader("content-security-policy", "frame-ancestors 'self'");
+  res.setHeader("x-content-type-options", "nosniff");
   if (req.url.startsWith("/api/")) { api(req, res); return; }
-  if (req.url === "/" || req.url.startsWith("/?")) { page(req, res); return; }
-  vite.middlewares(req, res, () => api(req, res));
+  compress(req, res, () => {
+    if (req.url === "/" || req.url.startsWith("/?")) page(req, res);
+    else vite.middlewares(req, res, () => api(req, res));
+  });
 });
 // Asset files can change where no watcher sees them: looked at while someone is watching, so a page knows soon enough
 setInterval(() => { if (vite.ws.clients.size) film.versions.changed(); }, 30e3);
