@@ -139,6 +139,7 @@ export function NoteList() {
       {tab === "diff" && <CompareBar />}
       <div
         ref={list}
+        data-arrow-scroll
         className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-auto overscroll-contain px-3 pb-3"
         onPointerDown={() => { touched.current = performance.now(); }}
         onWheel={() => { touched.current = performance.now(); }}

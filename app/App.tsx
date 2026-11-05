@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { Toaster } from "@/components/ui/toast";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { start } from "./engine/player";
 import type { Elements } from "./engine/state";
 import { set, showError } from "./engine/store";
@@ -15,11 +14,13 @@ export type Bind = <K extends keyof Elements>(key: K) => (node: Elements[K] | nu
 let started = false;
 
 // A button keeps focus after a mouse click, and Space would then press it instead of playing. From the keyboard focus stays,
-// so Space presses the control as usual. Popup triggers keep focus: their popup needs it to open and to return it
+// so Space presses the control as usual. A popup trigger keeps focus while its popup is open: the popup needs it
 const dropClickFocus = (e: MouseEvent) => {
   if (!e.detail) return;
-  const hit = (e.target as Element).closest?.("button:not([aria-haspopup]), summary, [role=tab]");
-  if (hit instanceof HTMLElement) hit.blur();
+  const hit = (e.target as Element).closest?.("button, summary, [role=tab]");
+  if (!(hit instanceof HTMLElement)) return;
+  // React has already drawn the click's result here, so a trigger whose popup this click closed shows aria-expanded="false"
+  if (!hit.matches("[aria-haspopup][aria-expanded=true]")) hit.blur();
 };
 
 export function App() {
@@ -39,15 +40,13 @@ export function App() {
   }, []);
   return (
     <Toaster limit={3}>
-      <TooltipProvider>
-        <div className="grid h-dvh grid-cols-[minmax(0,1fr)_360px] grid-rows-[minmax(0,1fr)_auto_auto] text-sm upright:flex upright:flex-col sideways:grid-cols-[minmax(0,1fr)_min(36%,320px)]">
-          <Stage bind={bind} />
-          <Transport />
-          <Timeline bind={bind} />
-          <Side />
-        </div>
-        <audio ref={bind("audio")} preload="auto" />
-      </TooltipProvider>
+      <div className="grid h-dvh grid-cols-[minmax(0,1fr)_360px] grid-rows-[minmax(0,1fr)_auto_auto] text-sm upright:flex upright:flex-col sideways:grid-cols-[minmax(0,1fr)_min(36%,320px)]">
+        <Stage bind={bind} />
+        <Transport />
+        <Timeline bind={bind} />
+        <Side />
+      </div>
+      <audio ref={bind("audio")} preload="auto" />
     </Toaster>
   );
 }

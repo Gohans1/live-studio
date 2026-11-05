@@ -137,7 +137,7 @@ export function Settings() {
         <h2 id="settings-title" className="text-[15px] font-semibold">Cài đặt</h2>
         <Button variant="ghost" size="icon" className="size-10 text-muted-foreground" aria-label="Đóng cài đặt" title="Esc" onClick={() => set({ settingsOpen: false })}><X /></Button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto overscroll-contain px-3 pt-1 pb-3">
+      <div data-arrow-scroll className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto overscroll-contain px-3 pt-1 pb-3">
         {s.contract.length > 0 && (
           <Section title="Phim sai quy ước">
             <p className="mb-1.5 text-xs text-muted-foreground">Gửi đoạn này cho AI đang làm phim, nó cũng thấy ở terminal của studio. Quy ước: docs/film-contract.md trong live-studio.</p>
@@ -157,7 +157,7 @@ export function Settings() {
         </Section>
         <Section title="Xem">
           <Row>
-            <span className="text-sm">Tốc độ</span>
+            <span className="text-sm whitespace-nowrap">Tốc độ</span>
             <ToggleGroup value={[String(s.rate)]} onValueChange={(v: string[]) => { if (v[0]) setRate(Number(v[0])); }} aria-label="Tốc độ" spacing={0.5} className="rounded-[10px] bg-card p-0.5">
               {["0.5", "1", "1.5", "2"].map((v) => (
                 <ToggleGroupItem key={v} value={v} className="h-8 px-2.5 text-sm text-muted-foreground tabular-nums aria-pressed:bg-raised-3 aria-pressed:font-semibold aria-pressed:text-foreground pointer-coarse:h-10">{v}×</ToggleGroupItem>

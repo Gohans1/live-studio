@@ -14,13 +14,8 @@ const walk = (key: string, fast: boolean) => {
   moveCam(key === "W" ? s : key === "S" ? -s : 0, key === "D" ? s : key === "A" ? -s : 0, key === "E" ? s : key === "Q" ? -s : 0);
 };
 
-// The keyboard walking a list (notes, settings) scrolls it with Up and Down; everywhere else they set the volume
-const walkingList = (e: KeyboardEvent) => {
-  const at = e.target;
-  if (!(at instanceof Element) || !at.matches(":focus-visible")) return false;
-  for (let el: Element | null = at; el; el = el.parentElement) if (el.scrollHeight > el.clientHeight && /auto|scroll/.test(getComputedStyle(el).overflowY)) return true;
-  return false;
-};
+// The keyboard walking a list (the ones marked data-arrow-scroll: notes, settings) scrolls it with Up and Down; everywhere else they set the volume
+const walkingList = (e: KeyboardEvent) => e.target instanceof Element && e.target.matches(":focus-visible") && !!e.target.closest("[data-arrow-scroll]");
 const volumeKey = (up: boolean): UseHotkeyDefinition => ({
   hotkey: up ? "ArrowUp" : "ArrowDown",
   callback: (e) => { if (walkingList(e)) return; e.preventDefault(); nudgeVolume(up); },
