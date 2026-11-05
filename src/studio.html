@@ -35,11 +35,25 @@ button.on{background:var(--tint);color:var(--accent)}
 #tl{position:absolute;top:10px;left:10px;right:10px;bottom:44px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;pointer-events:none;z-index:2}
 #badges{align-self:stretch;min-height:34px;margin-right:180px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px}
 #review{flex:1 1 0;min-height:0;display:flex;flex-flow:column wrap;align-content:flex-start;align-items:flex-start;gap:3px;font:clamp(9px,1.9cqh,12px)/1.35 var(--num);color:var(--text)}#review[hidden]{display:none}
+#review.narrow{flex-wrap:nowrap;width:var(--room);overflow-y:auto;overscroll-behavior:contain;pointer-events:auto;touch-action:pan-y}#review.narrow section{flex:none;width:100%}
 #review section{width:36ch;background:rgba(0,0,0,.62);border-radius:6px;padding:3px 8px 4px}
 #review h4{margin:0;font:700 .9em/1.5 var(--ui);letter-spacing:.06em;color:var(--accent)}
 #review p{margin:0;overflow-wrap:anywhere}#review p.new{color:var(--picture)}
 #review p b{font:700 .8em/1.4 var(--ui);color:var(--on-accent);background:var(--warn);border-radius:3px;padding:0 3px;margin-right:5px;vertical-align:1px}
 #badges b{background:var(--danger);color:var(--picture);padding:2px 8px;border-radius:6px;font-weight:600;font-size:12px;display:none}
+/* Right side, under the clock: the options whose moment is now or about to come. Only the chips take clicks; past the
+   picture's height the column scrolls */
+#tryNow{position:absolute;top:52px;right:10px;bottom:44px;max-width:48%;display:flex;flex-direction:column;align-items:flex-end;gap:4px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;pointer-events:none;z-index:3}#tryNow[hidden]{display:none}
+.try{flex:none;pointer-events:auto;background:rgba(0,0,0,.62);border-radius:8px;padding:4px 6px 6px;max-width:100%}
+.try p{margin:0 2px 4px;display:flex;align-items:baseline;gap:6px;font-size:12px;line-height:1.3;color:var(--text-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.try p b{color:var(--picture);font-weight:600}
+.try .cur{min-width:0;overflow:hidden;text-overflow:ellipsis;margin-left:auto;padding-left:6px;color:var(--text)}
+.try div{display:flex;gap:4px}
+#tryNow button{min-height:30px;min-width:30px;padding:0 8px;border-radius:6px;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+#tryNow button[aria-pressed="true"]{background:var(--tint);color:var(--accent);border-color:var(--accent)}
+#tryNow button.chosen{box-shadow:inset 0 -3px 0 var(--warn)}
+#tryNow .save{background:var(--accent);color:var(--on-accent)}
+@media (hover:hover){#tryNow button[aria-pressed="true"]:hover{background:var(--tint-hover)}#tryNow .save:hover{background:var(--accent-hover)}}
 #caption{position:absolute;left:0;right:0;bottom:12px;padding:0 12px;text-align:center;pointer-events:none;z-index:2}
 #caption span{background:rgba(0,0,0,.62);padding:3px 10px;border-radius:6px;color:var(--picture);-webkit-box-decoration-break:clone;box-decoration-break:clone}
 #pins{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
@@ -113,8 +127,9 @@ kbd{font:600 11px/1.6 var(--num);color:#B7B5AC;background:var(--raised-2);border
 #sel .btns{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
 #trial{display:none}
 #trialHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}#trialHead h3{margin:0}#trialGroup{max-width:60%}
-#trialOpts{display:flex;flex-direction:column;gap:4px}#trialOpts button{text-align:start;background:var(--raised)}#trialOpts button.on{background:var(--tint);color:var(--accent)}
-#trialOpts button.chosen::after{content:" \2605";color:var(--accent)}
+#trialOpts{display:flex;flex-direction:column;gap:4px}#trialOpts button{display:flex;justify-content:space-between;gap:8px;text-align:start;background:var(--raised)}#trialOpts button.on{background:var(--tint);color:var(--accent)}
+#trialOpts .chosen{color:var(--warn);font-size:12px;font-weight:600;white-space:nowrap}
+#trialWhen{margin:6px 0 0;font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums}
 #trialRow{display:flex;align-items:center;gap:6px;margin-top:6px}#trialGain{flex:1;min-width:0;accent-color:var(--accent)}#trialGainText{min-width:4ch;text-align:end;font-variant-numeric:tabular-nums;color:var(--text-2)}
 #keys summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--text-2);min-height:32px;display:flex;align-items:center;gap:6px;list-style:none}#keys summary::-webkit-details-marker{display:none}
 #keys summary::before{content:"";width:6px;height:6px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(-45deg);margin:0 2px}#keys[open] summary::before{transform:rotate(45deg)}
@@ -167,6 +182,7 @@ kbd{font:600 11px/1.6 var(--num);color:#B7B5AC;background:var(--raised-2);border
 /* Touch: a thumb needs room, and there's no keyboard so every key has a button */
 @media (pointer:coarse){
   button,select{min-height:44px}
+  #tryNow button{min-height:36px;min-width:36px}
   #text{font-size:16px} /* below 16px, phones zoom the whole page on focus */
   #compose small,#keys,#perf,#camSet,.hint,#volR{display:none}
   .seg button{min-height:40px}
@@ -197,6 +213,9 @@ kbd{font:600 11px/1.6 var(--num);color:#B7B5AC;background:var(--raised-2);border
   #row,#ctl{flex:none}
   #clock,#clockB{font-size:16px;top:6px;right:6px;padding:1px 6px}.cmpTag{top:6px;left:6px}
   #tl{top:6px;left:6px;right:6px;bottom:30px;gap:4px}#badges{min-height:22px;margin-right:100px}#badges b{font-size:11px}
+  /* Half the picture's width at most: the head and a Chốt that don't fit go to a second line rather than off the edge */
+  #tryNow{top:32px;right:6px;bottom:6px;max-width:46%;gap:3px}.try{padding:3px 4px 4px}.try p{flex-wrap:wrap;column-gap:5px;font-size:11px;margin-bottom:3px}.try .cur{display:none}
+  .try div{flex-wrap:wrap}#tryNow button{min-height:30px;min-width:30px;padding:0 6px;font-size:12px}
   /* Too short for the whole list: one column on the left half that a finger scrolls */
   #review{gap:2px;flex-wrap:nowrap;width:52%;overflow-y:auto;overscroll-behavior:contain;pointer-events:auto;touch-action:pan-y}#review section{flex:none;width:100%;padding:2px 6px 3px}
   #cmpB{flex:0 0 44px;width:44px;padding:0;justify-content:center;margin:0}#cmpB span{display:none}#cmpB em{position:absolute;top:-4px;right:-4px}
@@ -220,6 +239,7 @@ kbd{font:600 11px/1.6 var(--num);color:#B7B5AC;background:var(--raised-2);border
   #ctl{padding-bottom:6px}#over{margin:0}#detail{display:none}
   #clock,#clockB{font-size:16px;top:6px;right:6px;padding:1px 6px}.cmpTag{top:6px;left:6px}
   #tl{top:6px;left:6px;right:6px;bottom:30px;gap:4px}#badges{min-height:22px;margin-right:100px}
+  #tryNow{top:32px;right:6px;bottom:6px}.try p{font-size:11px}
   /* Too short for the whole list: one column on the left half that a finger scrolls */
   #review{gap:2px;flex-wrap:nowrap;width:52%;overflow-y:auto;overscroll-behavior:contain;pointer-events:auto;touch-action:pan-y}#review section{flex:none;width:100%;padding:2px 6px 3px}
   #cmpB{height:44px;flex:0 0 44px;width:44px;padding:0;justify-content:center}#cmpB span{display:none}#cmpB em{position:absolute;top:-4px;right:-4px}
@@ -235,7 +255,7 @@ kbd{font:600 11px/1.6 var(--num);color:#B7B5AC;background:var(--raised-2);border
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.1v13.8a.6.6 0 0 0 .9.5l10.7-6.9a.6.6 0 0 0 0-1L8.9 4.6a.6.6 0 0 0-.9.5z"/></symbol><symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4.5" height="14" rx="1"/><rect x="13.5" y="5" width="4.5" height="14" rx="1"/></symbol><symbol id="i-note" viewBox="0 0 24 24"><path d="M16.9 3.6a2 2 0 0 1 2.8 0l.7.7a2 2 0 0 1 0 2.8L8.6 18.9a2 2 0 0 1-.9.5l-3.9 1a.6.6 0 0 1-.7-.7l1-3.9a2 2 0 0 1 .5-.9z"/></symbol><symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></symbol><symbol id="i-vol" viewBox="0 0 24 24"><path d="M4 9.5h3.2L12 5.4v13.2l-4.8-4.1H4z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol><symbol id="i-vol-x" viewBox="0 0 24 24"><path d="M4 9.5h3.2L12 5.4v13.2l-4.8-4.1H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol><symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol><symbol id="i-compare" viewBox="0 0 24 24"><rect x="3" y="5" width="8" height="14" rx="1.5"/><rect x="13" y="5" width="8" height="14" rx="1.5" opacity=".55"/></symbol><symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4l9 16H3zM12 10v4M12 17.2v.1"/></symbol></svg>
 <div id="wrap">
   <div id="view"><div id="beforeStage"><iframe id="beforeFrame" title="Bản trước"></iframe><div class="cmpBoxes" id="boxesB"></div><div id="clockB">00:00.000</div><b class="cmpTag">TRƯỚC</b><div id="beforeLoad"></div></div><div id="stage"><canvas id="gl" width="960" height="540"></canvas><canvas id="final" width="1920" height="1080"></canvas>
-    <div class="cmpBoxes" id="boxesA"></div><div id="pins"></div><div id="clock">00:00.000</div><div id="tl"><div id="badges"><b id="bFree">CAMERA TỰ DO</b><b id="bFinal">CHẤT LƯỢNG FINAL</b><b id="bLoop">LẶP SHOT</b><b id="bAfter">SAU</b><span id="mix" role="status"></span></div><div id="review" hidden></div></div><div id="caption"></div><div id="load"></div></div><pre id="err"></pre></div>
+    <div class="cmpBoxes" id="boxesA"></div><div id="pins"></div><div id="clock">00:00.000</div><div id="tl"><div id="badges"><b id="bFree">CAMERA TỰ DO</b><b id="bFinal">CHẤT LƯỢNG FINAL</b><b id="bLoop">LẶP SHOT</b><b id="bAfter">SAU</b><span id="mix" role="status"></span></div><div id="review" hidden></div></div><div id="tryNow" hidden></div><div id="caption"></div><div id="load"></div></div><pre id="err"></pre></div>
   <div id="row"><button id="play"><svg class="i"><use id="playIcon" href="#i-play"/></svg><span id="playText">Phát</span></button><button id="pNote"><svg class="i"><use href="#i-note"/></svg>Ghi chú</button><button id="cmpB" aria-label="So sánh" title="B: so với bản xem lần cuối" hidden><svg class="i"><use href="#i-compare"/></svg><span>So sánh</span></button><div id="vol"><button id="muteB" title="Tắt tiếng (M)" aria-label="Tắt tiếng" aria-pressed="false"><svg class="i"><use id="volIcon" href="#i-vol"/></svg></button><input id="volR" type="range" min="0" max="1" step="0.05" value="1" title="Âm lượng (phím ↑ ↓)" aria-label="Âm lượng"></div><button id="moreB" title="Cài đặt" aria-label="Cài đặt" aria-expanded="false" aria-controls="more"><svg class="i"><use href="#i-more"/></svg></button>
     <div id="cmpBar" hidden><button id="cmpPrev" title="Z">‹ Chỗ đổi</button><button id="cmpNext" title="X">Chỗ đổi ›</button><button id="cmpFlip" title="V">Bật qua lại</button><select id="cmpWhich" title="So với bản nào" aria-label="So với bản nào"></select><span id="cmpKey"><i style="background:#CE5D97"></i>hình<i style="background:#D0A215"></i>tiếng</span><span id="cmpStatus" role="status"></span></div></div>
   <div id="ctl">
@@ -252,12 +272,13 @@ kbd{font:600 11px/1.6 var(--num);color:#B7B5AC;background:var(--raised-2);border
         <section><h3>Xem</h3>
           <div class="set"><span>Tốc độ</span><div class="seg" id="rate" role="group" aria-label="Tốc độ"><button aria-pressed="false" data-v="0.5">0.5×</button><button aria-pressed="true" data-v="1">1×</button><button aria-pressed="false" data-v="1.5">1.5×</button><button aria-pressed="false" data-v="2">2×</button></div></div>
           <div class="set"><label for="capB">Phụ đề</label><button id="capB" class="sw" role="switch" aria-checked="true"></button></div>
+          <div class="set"><label for="tryB">Lựa chọn hiện trên hình</label><button id="tryB" class="sw" role="switch" aria-checked="true"></button></div>
           <div class="set" id="revSet" hidden><label for="revB">Danh sách kỹ thuật <span class="hint" aria-hidden="true"><kbd>I</kbd></span></label><button id="revB" class="sw" role="switch" aria-checked="true"></button></div>
           <div class="set"><label for="loopB">Lặp shot <span class="hint" aria-hidden="true"><kbd>L</kbd></span></label><button id="loopB" class="sw" role="switch" aria-checked="false"></button></div>
           <div class="set"><span>Chuyển shot <span class="hint" aria-hidden="true"><kbd>[</kbd><kbd>]</kbd></span></span><div class="pair"><button id="prev" aria-label="Shot trước">‹ Trước</button><button id="next" aria-label="Shot sau">Sau ›</button></div></div>
         </section>
-        <section id="trial"><div id="trialHead"><h3>Thử tiếng <span class="hint" aria-hidden="true"><kbd>0</kbd>–<kbd>9</kbd></span></h3><select id="trialGroup" aria-label="Nhóm tiếng"></select></div><div id="trialOpts"></div>
-          <div id="trialRow"><input id="trialGain" type="range" min="0" max="2" step="0.05" value="1" title="To nhỏ" aria-label="To nhỏ của tiếng đang thử"><span id="trialGainText">100%</span><button id="trialGo" title="Nhảy tới chỗ có tiếng này và phát">Nghe</button><button id="trialPick" title="Dùng tiếng này cho phim">Chốt</button></div></section>
+        <section id="trial"><div id="trialHead"><h3>Lựa chọn <span class="hint" aria-hidden="true"><kbd>0</kbd>–<kbd>9</kbd></span></h3><select id="trialGroup" aria-label="Nhóm lựa chọn"></select></div><div id="trialOpts"></div><p id="trialWhen"></p>
+          <div id="trialRow"><input id="trialGain" type="range" min="0" max="2" step="0.05" value="1" title="To nhỏ" aria-label="To nhỏ của tiếng đang thử"><span id="trialGainText">100%</span><button id="trialGo" title="Nhảy tới chỗ có tiếng này và phát">Nghe</button><button id="trialPick" title="Dùng lựa chọn này cho phim">Chốt</button></div></section>
         <section id="camSet"><h3>Camera</h3>
           <div class="set"><label for="freeB">Camera tự do <span class="hint" aria-hidden="true"><kbd>F</kbd></span></label><button id="freeB" class="sw" role="switch" aria-checked="false"></button></div>
           <div class="set" id="finalSet"><label for="finalB">Xem chất lượng final <span class="hint" aria-hidden="true"><kbd>G</kbd></span></label><button id="finalB" class="sw" role="switch" aria-checked="false"></button></div>

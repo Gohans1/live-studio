@@ -31,7 +31,8 @@ const MIX_SMALL = join(WORK, "mix_small.webm"); // the same mix for anything but
 const LITE = join(WORK, "lite"); // small copies of the assets, see make_lite.py
 const TRIALS = join(WORK, "trials.json");
 const EDIT = join(SRC, "edit.json");
-const CHOICES = join(PROJECT, "sound_choices.json");
+// What was picked in the studio ("Chốt"), {group: {set, gain}}, read by the project's own renders; older projects named it sound_choices.json
+const CHOICES = [join(PROJECT, "sound_choices.json"), join(PROJECT, "choices.json")].find(existsSync) ?? join(PROJECT, "choices.json");
 const PORT = Number(process.argv[2]) || 4321;
 mkdirSync(WORK, { recursive: true });
 const MIME = { ".gltf": "application/json", ".glb": "model/gltf-binary", ".jpg": "image/jpeg", ".png": "image/png", ".bin": "application/octet-stream", ".js": "text/javascript", ".wav": "audio/wav", ".webm": "audio/webm" };
@@ -168,6 +169,7 @@ const handle = async (req, res) => {
     for (const g in trials) trials[g].chosen = chosen[g] ?? null;
     res.setHeader("content-type", "application/json"); sendText(req, res, Buffer.from(JSON.stringify(trials))); return;
   }
+  if (url === "/choices.json") { res.setHeader("content-type", "application/json"); sendText(req, res, Buffer.from(JSON.stringify(readChoices()))); return; }
   if (req.method === "POST" && url === "/choose") {
     const { group, set, gain } = await readJson(req);
     writeFileSync(CHOICES, JSON.stringify({ ...readChoices(), [group]: { set, gain } }, null, 1) + "\n");

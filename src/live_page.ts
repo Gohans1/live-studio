@@ -716,7 +716,7 @@ const drawDetail = () => {
     for (const [off] of m.sounds) if (m.kind === "motion") g.fillRect(X(fromSource(m.at + off)), y + 10, 2, 3);
     boxes.unshift({ type: "beat", id, x0, x1: Math.min(x1, label + 60), y0: y, y1: y + 13 });
   }
-  if (groupName) { g.fillStyle = "#D0A215"; for (const c of group().cues) { const o = fromSource(c.at); if (o >= a && o <= b) g.fillRect(X(o), h - 16, 1, 4); } }
+  if (groupName) { g.fillStyle = "#D0A215"; for (const [s0, s1] of rangesOf(groupName)) if (s1 >= a && s0 <= b) g.fillRect(X(s0), h - 16, Math.max(1, X(s1) - X(s0)), 4); }
   // Words, as many as fit
   g.font = `12px ${UI_FONT}`; g.fillStyle = "#CECDC3";
   let right = -1;
@@ -835,15 +835,25 @@ const setFinal = async (on) => {
   dirty = true;
 };
 
-// ---------- Trying sounds: these hits aren't in the live mix, they are played from here, so a switch is heard on the very next hit
+// ---------- Options to choose between, in one list: looks of a prop (the film's draw.variants) and sounds (trials.json from the
+// project's sound.py). A look is swapped in the scene; a sound is played from here and left out of the live mix. Either way a
+// switch shows or sounds at once, and "Chốt" writes the pick to the project's choices file, which its renders read.
+// A sound group is either cues (one hit per cue) or kind "stem": one recording per option covering from..to on the mix's clock
 const ctx = new AudioContext();
 const master = ctx.createGain();
 master.connect(ctx.destination);
-let trials = {}, groupName = null, picked = JSON.parse(sessionStorage.getItem("picked") || "{}"), sounding = [], anchor = null;
+let trials = {}, groupName = null, picked = JSON.parse(sessionStorage.getItem("picked") || "{}"), sounding = [], anchor = null, stems = {};
 const group = () => trials[groupName];
-const pickOf = (name) => picked[name] ?? { set: trials[name].chosen?.set ?? "old", gain: trials[name].chosen?.gain ?? 1 };
+const pickOf = (name) => picked[name] ?? { set: trials[name].chosen?.set ?? trials[name].options[0].id, gain: trials[name].chosen?.gain ?? 1 };
 const optionOf = (name) => trials[name].options.find((o) => o.id === pickOf(name).set) ?? trials[name].options[0];
-const silence = () => { for (const s of sounding) { try { s.stop(); } catch {} } sounding = []; anchor = null; };
+// Film seconds where a group is on screen or heard: [[from, to], ...]
+const rangesOf = (name) => {
+  const g = trials[name];
+  if (g.kind === "picture") return g.variant.ranges;
+  if (g.kind === "stem") return [[g.from, g.to]];
+  return (g.cues ?? []).map((c) => { const o = fromSource(c.at); return [o, o]; });
+};
+const silence = () => { for (const s of sounding) { try { s.stop(); } catch {} } sounding = []; stems = {}; anchor = null; };
 const playHit = (name, cue, when, speed) => {
   const o = optionOf(name), buf = o.buffers?.[cue.pick % o.buffers.length];
   if (!buf) { loadOption(o); return; }
@@ -856,6 +866,22 @@ const playHit = (name, cue, when, speed) => {
   src.start(when);
   sounding.push(src);
   window.__hits = { n: (window.__hits?.n ?? 0) + 1, set: o.id, at: cue.at, late: +(cue.at - (audio.currentTime + (when - ctx.currentTime) * audio.playbackRate)).toFixed(4) };
+};
+// A stem is mixed at the film's level already; offset is seconds into it. With a length it is a preview, faded out so it doesn't click
+const playStem = (name, when, offset, speed, length) => {
+  const o = optionOf(name), buf = o.buffers?.[0];
+  if (!buf) { loadOption(o); return null; }
+  const src = ctx.createBufferSource(), g = ctx.createGain(), v = pickOf(name).gain;
+  src.buffer = buf;
+  src.playbackRate.value = speed;
+  g.gain.value = v;
+  if (length) { g.gain.setValueAtTime(v, when + length - 0.08); g.gain.linearRampToValueAtTime(0, when + length); }
+  src.connect(g).connect(master);
+  src.onended = () => { sounding = sounding.filter((s) => s !== src); };
+  if (length) src.start(when, offset, length); else src.start(when, offset);
+  sounding.push(src);
+  window.__stems = { ...window.__stems, [name]: { set: o.id, offset: +offset.toFixed(3) } };
+  return src;
 };
 const soundFiles = {};
 const loadSounds = async () => {
@@ -891,52 +917,171 @@ const scheduleHits = () => {
   const until = now + 0.25 * speed;
   const due = (at) => at >= anchor.from && at < until && at > now - 0.1;
   const when = (at) => Math.max(ctx.currentTime, anchor.base + at / speed);
-  for (const name in trials) for (const c of trials[name].cues) { const at = Math.round(fromSource(c.at) * FPS) / FPS; if (due(at)) playHit(name, c, when(at), speed); }
+  for (const name in trials) {
+    const g = trials[name];
+    if (g.cues) { for (const c of g.cues) { const at = Math.round(fromSource(c.at) * FPS) / FPS; if (due(at)) playHit(name, c, when(at), speed); } }
+    else if (g.kind === "stem" && !stems[name] && g.from < until && now < g.to) { const at = Math.max(now, g.from); stems[name] = playStem(name, when(at), at - g.from, speed); }
+  }
   // Every other sound in the film: the live mix leaves them out too, so moving one is heard at once
   for (const b of Object.values(EDIT.beats)) for (const [off, name, v] of b.sounds) { const at = Math.round(fromSource(b.at + off) * FPS) / FPS; if (due(at)) playSound(name, v, when(at), speed); }
   anchor.from = until;
 };
 setInterval(scheduleHits, 50);
+const letter = (i) => String.fromCharCode(65 + i);
+const clockText = (x) => `${Math.floor(x / 60)}:${(x % 60).toFixed(1).padStart(4, "0")}`;
+const rangeText = ([a, b]) => (b - a < 0.05 ? clockText(a) : `${clockText(a)}–${clockText(b)}`);
+// The settings panel: every group, whatever the time
 const drawTrial = () => {
   const name = groupName;
   $("trial").style.display = name ? "flex" : "none";
   if (!name) return;
-  const p = pickOf(name), chosen = trials[name].chosen;
-  $("trialOpts").replaceChildren(...trials[name].options.map((o, i) => {
+  const g = trials[name], p = pickOf(name), picture = g.kind === "picture";
+  $("trialOpts").replaceChildren(...g.options.map((o, i) => {
     const b = document.createElement("button");
     b.textContent = `${i} ${o.title}`;
-    b.className = `${o.id === p.set ? "on" : ""} ${o.id === chosen?.set ? "chosen" : ""}`;
+    if (o.id === g.chosen?.set) { const c = document.createElement("span"); c.className = "chosen"; c.textContent = "đã chốt"; b.append(c); }
+    b.className = o.id === p.set ? "on" : "";
+    b.setAttribute("aria-pressed", o.id === p.set);
     b.title = o.source ?? "";
-    b.onclick = () => chooseOption(i);
+    b.onclick = () => choose(name, i);
     return b;
   }));
+  $("trialGain").hidden = $("trialGainText").hidden = picture;
   $("trialGain").value = p.gain;
   $("trialGainText").textContent = `${Math.round(p.gain * 100)}%`;
+  $("trialGo").textContent = picture ? "Xem" : "Nghe";
+  $("trialGo").title = picture ? "Nhảy tới chỗ thấy nó và phát" : "Nhảy tới chỗ có tiếng này và phát";
+  const r = rangesOf(name);
+  $("trialWhen").textContent = r.length ? `${picture ? "Thấy" : "Nghe"} lúc ${r.slice(0, 4).map(rangeText).join(", ")}${r.length > 4 ? ` và ${r.length - 4} chỗ nữa` : ""}` : "Không lúc nào thấy trên hình";
 };
-const setPicked = (change) => {
-  picked[groupName] = { ...pickOf(groupName), ...change };
+// On the picture: the groups seen or heard around the playhead, so a choice turns up when its moment does
+const SOON = 2, LATE = 0.5;
+let tryOn = true, tryKey = "";
+try { tryOn = localStorage.getItem("tryNow") !== "off"; } catch {}
+const drawTryNow = () => {
+  const box = $("tryNow");
+  const near = !tryOn || cmp.on ? [] : Object.keys(trials).flatMap((name) => {
+    const r = rangesOf(name).find(([a, b]) => b >= t - LATE && a <= t + SOON);
+    return r ? [{ name, r }] : [];
+  });
+  const key = JSON.stringify(near.map(({ name, r }) => [name, r, pickOf(name).set, trials[name].chosen?.set]));
+  if (key === tryKey) return;
+  tryKey = key;
+  box.hidden = !near.length;
+  const focused = box.contains(document.activeElement) ? document.activeElement.dataset.k : null; // a pick rebuilds the chip under the key that made it
+  box.replaceChildren(...near.map(({ name, r }) => {
+    const g = trials[name], p = pickOf(name), now = optionOf(name);
+    const chip = document.createElement("div");
+    chip.className = "try";
+    chip.setAttribute("role", "group");
+    chip.setAttribute("aria-label", `${g.title}, ${rangeText(r)}`);
+    const head = document.createElement("p");
+    const b = document.createElement("b"), when = document.createElement("span"), cur = document.createElement("span");
+    b.textContent = g.title;
+    when.textContent = rangeText(r);
+    cur.className = "cur";
+    cur.textContent = now.title;
+    head.append(b, " ", when, cur);
+    head.title = `${g.title}: ${now.title}`;
+    const row = document.createElement("div");
+    row.append(...g.options.map((o, i) => {
+      const btn = document.createElement("button");
+      const chosen = o.id === (g.chosen?.set ?? g.options[0].id);
+      btn.textContent = letter(i);
+      btn.dataset.k = `${name}:${i}`;
+      btn.className = chosen ? "chosen" : "";
+      btn.setAttribute("aria-pressed", o.id === p.set);
+      btn.setAttribute("aria-label", `${letter(i)}, ${o.title}${chosen ? ", đã chốt" : ""}`);
+      btn.title = `${letter(i)}: ${o.title}${chosen ? " (đã chốt)" : ""}`;
+      btn.onclick = () => choose(name, i);
+      return btn;
+    }));
+    if (p.set !== (g.chosen?.set ?? g.options[0].id)) {
+      const pin = document.createElement("button");
+      pin.className = "save";
+      pin.textContent = "Chốt";
+      pin.dataset.k = `${name}:pin`;
+      pin.setAttribute("aria-label", `Chốt ${now.title} cho ${g.title}`);
+      pin.onclick = () => pinPick(name);
+      row.append(pin);
+    }
+    chip.append(head, row);
+    return chip;
+  }));
+  fitOverlays();
+  if (focused) (box.querySelector(`[data-k="${CSS.escape(focused)}"]`) ?? box.querySelector(`[data-k^="${CSS.escape(focused.split(":")[0])}:"]`))?.focus();
+};
+// The review list (top left) wraps into as many columns as the picture's height asks for; where they would run under the
+// options (right), it becomes one column that scrolls, as on a phone
+function fitOverlays() {
+  const list = $("review"), box = $("tryNow");
+  list.classList.remove("narrow");
+  if (list.hidden || box.hidden) return;
+  const edge = Math.min(...[...box.children].map((c) => c.getBoundingClientRect().left)) - 8;
+  if (Math.max(...[...list.children].map((c) => c.getBoundingClientRect().right)) <= edge) return;
+  list.classList.add("narrow");
+  list.style.setProperty("--room", `${Math.max(120, edge - list.getBoundingClientRect().left)}px`);
+}
+addEventListener("resize", () => { tryKey = ""; dirty = true; });
+const setTryNow = (on) => {
+  tryOn = on;
+  $("tryB").setAttribute("aria-checked", on);
+  try { localStorage.setItem("tryNow", on ? "on" : "off"); } catch {}
+  tryKey = "";
+  dirty = true;
+};
+$("tryB").setAttribute("aria-checked", tryOn);
+$("tryB").onclick = () => setTryNow(!tryOn);
+$("tryNow").addEventListener("click", (e) => { if (e.detail) e.target.closest("button")?.blur(); }); // a click leaves no focus, so Space stays play
+const setPicked = (name, change) => {
+  picked[name] = { ...pickOf(name), ...change };
   sessionStorage.setItem("picked", JSON.stringify(picked));
-  if (anchor) { silence(); scheduleHits(); }
+  const g = trials[name];
+  if (g.kind === "picture") { g.variant.set(pickOf(name).set); dirty = true; }
+  else if (anchor) { silence(); scheduleHits(); }
   drawTrial();
+  tryKey = "";
+  drawTryNow();
 };
-const chooseOption = (i) => {
-  const o = group()?.options[i];
+const choose = (name, i) => {
+  const g = trials[name], o = g?.options[i];
   if (!o) return;
   ctx.resume();
-  setPicked({ set: o.id });
-  const name = groupName;
-  loadOption(o).then(() => { if (!playing) playHit(name, trials[name].cues[Math.floor(Math.random() * trials[name].cues.length)], ctx.currentTime, 1); }); // paused: still say what it sounds like
+  setPicked(name, { set: o.id });
+  flash(`${g.title}: ${letter(i)} ${o.title}`);
+  if (g.kind === "picture") return;
+  // Paused: still say what it sounds like
+  loadOption(o).then(() => {
+    if (playing) return;
+    if (g.cues?.length) playHit(name, g.cues[Math.floor(Math.random() * g.cues.length)], ctx.currentTime, 1);
+    else if (g.kind === "stem") { const len = Math.min(2.5, g.to - g.from); playStem(name, ctx.currentTime, Math.min(Math.max(0, t - g.from), g.to - g.from - len), 1, len); }
+  });
 };
-// Only the sound in use comes down: the others wait until someone picks them
-const loadOption = (o) => (o.loading ??= Promise.all(o.files.map(async (f) => ctx.decodeAudioData(await (await getFile(f)).arrayBuffer()))).then((b) => { o.buffers = b; }));
+const chooseOption = (i) => { if (groupName) choose(groupName, i); };
+const pinPick = async (name) => {
+  const p = pickOf(name), r = await jsonPost("/choose", { group: name, ...p }).catch(() => null);
+  if (!r?.ok) { flash("chưa chốt được: studio không trả lời, bấm Chốt lại khi studio chạy"); return; }
+  trials[name].chosen = p;
+  drawTrial();
+  tryKey = "";
+  drawTryNow();
+  flash(`đã chốt ${trials[name].title}: ${optionOf(name).title}, bản render sau sẽ dùng`);
+};
+// Only the sound in use comes down: the others wait until someone picks them. A look has nothing to load
+const loadOption = (o) => (o.files ? (o.loading ??= Promise.all(o.files.map(async (f) => ctx.decodeAudioData(await (await getFile(f)).arrayBuffer()))).then((b) => { o.buffers = b; })) : Promise.resolve());
 const loadTrials = async () => {
-  const r = await getFile("/trials.json");
-  if (!r.ok) return;
-  trials = await r.json();
+  const [r, c] = await Promise.all([getFile("/trials.json"), getFile("/choices.json")]);
+  const chosen = c.ok ? await c.json() : {}, sounds = r.ok ? await r.json() : {};
+  const looks = Object.fromEntries((render?.variants ?? []).map((v) => [v.id, { title: v.title, kind: "picture", variant: v, options: v.options, chosen: chosen[v.id] ?? null }]));
+  silence();
+  trials = { ...looks, ...sounds };
+  for (const name in looks) looks[name].variant.set(pickOf(name).set);
   groupName = trials[groupName] ? groupName : Object.keys(trials)[0] ?? null;
   $("trialGroup").replaceChildren(...Object.keys(trials).map((k) => { const o = document.createElement("option"); o.value = k; o.textContent = trials[k].title; return o; }));
   $("trialGroup").value = groupName;
   drawTrial();
+  tryKey = "";
+  dirty = true;
   await Promise.all(Object.keys(trials).map((name) => loadOption(optionOf(name))));
 };
 $("pNote").onclick = () => openNote(null);
@@ -948,20 +1093,16 @@ const zoomSpan = (k) => { span = Math.max(6, Math.min(DURATION, span * k)); sess
 $("pIn").onclick = () => zoomSpan(1 / 1.5);
 $("pOut").onclick = () => zoomSpan(1.5);
 $("trialGroup").onchange = () => { groupName = $("trialGroup").value; drawTrial(); dirty = true; };
-$("trialGain").oninput = () => setPicked({ gain: Number($("trialGain").value) });
+$("trialGain").oninput = () => setPicked(groupName, { gain: Number($("trialGain").value) });
 $("trialGo").onclick = () => {
-  const cues = group().cues, next = cues.find((c) => c.at > t + 0.7) ?? cues[0];
+  const r = rangesOf(groupName);
+  if (!r.length) return;
+  const next = r.find(([a]) => a > t + 0.7) ?? r[0];
   ctx.resume();
-  seek(next.at - 0.6);
+  seek(Math.max(0, next[0] - 0.6));
   if (!playing) setPlaying(true);
 };
-$("trialPick").onclick = async () => {
-  const p = pickOf(groupName);
-  await jsonPost("/choose", { group: groupName, ...p });
-  group().chosen = p;
-  drawTrial();
-  flash(`đã chốt ${optionOf(groupName).title}, bản render sau sẽ dùng, hình không phải render lại`);
-};
+$("trialPick").onclick = () => pinPick(groupName);
 
 // ---------- Main loop
 async function main() {
@@ -1016,6 +1157,7 @@ async function main() {
       dirty = false;
       const a = performance.now();
       if (!cmp.on || cmp.show !== "before" || !cmp.film) { render(t); drawReview(); } // only the old version shows: nothing to draw on this side
+      drawTryNow();
       drawBefore();
       lastDraw = performance.now() - a;
       drawMs = drawMs * 0.9 + lastDraw * 0.1;
@@ -1342,6 +1484,7 @@ const drawReview = () => {
   box.hidden = false;
   if (key === reviewKey) return;
   reviewKey = key;
+  queueMicrotask(fitOverlays);
   box.replaceChildren(...sections.map(({ head, lines }) => {
     const s = document.createElement("section");
     const h = document.createElement("h4");
@@ -1406,7 +1549,7 @@ addEventListener("keydown", (e) => {
   const k = e.key;
   if (k.startsWith("Arrow") && e.target === keyFocus && e.target.matches?.("input,select")) return;
   if ((k === "ArrowUp" || k === "ArrowDown") && e.target === keyFocus && e.target.closest?.("#list,#moreBody")) return; // the keyboard is walking a list: let it scroll
-  if (k === " " && e.target.closest?.("#more button,#more select,#more input,#more summary")) return;
+  if (k === " " && e.target.closest?.("#more button,#more select,#more input,#more summary,#tryNow button")) return;
   if (k === " ") { setPlaying(!playing); }
   else if (k === "ArrowLeft") seek(t - (e.shiftKey ? 5 : 1 / FPS));
   else if (k === "ArrowRight") seek(t + (e.shiftKey ? 5 : 1 / FPS));
