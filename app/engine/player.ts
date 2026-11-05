@@ -5,6 +5,7 @@ import * as FILM from "film/scene";
 import { buildScene, DURATION, SHOTS_OUT as SHOTS } from "film/scene";
 import { EDIT, setEdit } from "film/edit";
 import { checkFilm, problems, Sections } from "../../src/contract.mjs";
+import { onEvent, onHello } from "../events";
 import { AWAY, FPS, getFile, MIX_URL, PHONE, postJson, stamp, stored, wait } from "./env";
 import { followChanges, loadVersions } from "./changes";
 import { flushNotes, followNotes, loadNotes, noteAt, openNote, pinsHere, restoreDraft } from "./notes";
@@ -30,7 +31,7 @@ export const setPlaying = (p: boolean) => {
   else { audio.pause(); seek(Math.round(S.t * FPS) / FPS); }
 };
 // A code change waits for a stop: the film reloads at the same second
-const reloadNow = () => { sessionStorage.setItem("t", String(S.t)); location.reload(); };
+const reloadNow = () => { stored.set("t", String(S.t), sessionStorage); location.reload(); };
 export const togglePlay = () => { setPlaying(!S.playing); if (!S.playing && S.reloadWaiting) reloadNow(); };
 export const step = (seconds: number) => seek(S.t + seconds);
 export const jumpShot = (d: number) => { const i = shotIndex(S.t); seek(d < 0 && S.t - SHOTS[i].t > 0.4 ? SHOTS[i].t : SHOTS[Math.max(0, Math.min(SHOTS.length - 1, i + d))].t); };
@@ -346,21 +347,27 @@ const attachPicture = () => {
   });
 };
 
-// ---------- The film's saves, from the studio's server over Vite's own connection (src/live.mjs)
+// ---------- The film's saves, from the studio's server (app/events.ts)
 const listen = () => {
-  const hot = import.meta.hot;
-  if (!hot) return;
   // A code change waits for a note being spoken or a film playing: reloading now would throw the words away
-  hot.on("live:code", () => { if (get().compose || S.playing) { S.reloadWaiting = true; say("code đổi, sẽ tải lại khi dừng", 0); return; } reloadNow(); });
-  hot.on("live:sound-start", () => say("đang trộn tiếng…"));
-  hot.on("live:sound", () => { loadMix(); loadTrials(); say("tiếng đã cập nhật"); });
-  hot.on("live:notes", loadNotes);
-  hot.on("live:versions", loadVersions);
-  hot.on("live:voice", loadVoice);
-  hot.on("live:contract", loadContract);
-  hot.on("live:edit", loadEdit);
-  // The studio restarted: what changed meanwhile
-  hot.on("vite:ws:connect", () => { loadVersions(); loadNotes(); });
+  const codeChanged = () => { if (get().compose || S.playing) { S.reloadWaiting = true; say("code đổi, sẽ tải lại khi dừng", 0); return; } reloadNow(); };
+  onEvent("code", codeChanged);
+  onEvent("build-error", (message) => say(`code lỗi, trang vẫn chạy bản trước: ${message.split("\n")[0]}`, 0));
+  onEvent("sound-start", () => say("đang trộn tiếng…"));
+  onEvent("sound", () => { loadMix(); loadTrials(); say("tiếng đã cập nhật"); });
+  onEvent("notes", loadNotes);
+  onEvent("versions", loadVersions);
+  onEvent("voice", loadVoice);
+  onEvent("contract", loadContract);
+  onEvent("edit", loadEdit);
+  // Back after the line dropped or the studio restarted: catch up on what changed meanwhile
+  let first = true;
+  onHello((current) => {
+    if (first) { first = false; if (current) return; }
+    if (!current) codeChanged();
+    loadVersions();
+    loadNotes();
+  });
 };
 
 // ---------- Start, then draw whenever something changed
@@ -451,7 +458,7 @@ const loop = () => {
     }
     followNotes();
     followChanges();
-    sessionStorage.setItem("t", String(S.t));
+    stored.set("t", String(S.t), sessionStorage);
     window.__live = { t: S.t, shot: i, drawMs };
   } else if (warm.length) {
     // While nothing is asked of it: touch one more shot, nearest first, so its shaders and textures are ready before the first

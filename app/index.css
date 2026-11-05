@@ -6,8 +6,16 @@
 
 @custom-variant dark (&:is(.dark *));
 /* A phone held upright: picture on top, notes under it. A phone on its side: picture beside a narrow notes column */
-@custom-variant upright (@media (max-width: 820px) and (min-height: 521px), (max-width: 559px));
-@custom-variant sideways (@media (max-height: 520px) and (min-width: 560px));
+@custom-variant upright {
+    @media (max-width: 820px) and (min-height: 521px), (max-width: 559px) {
+        @slot;
+    }
+}
+@custom-variant sideways {
+    @media (max-height: 520px) and (min-width: 560px) {
+        @slot;
+    }
+}
 
 @theme inline {
     --font-heading: var(--font-sans);

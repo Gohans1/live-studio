@@ -1,14 +1,17 @@
-// What the studio page asks the server for, as one Hono app. /api/* is answered before Vite; anything Vite doesn't serve
-// falls through to the film's own files (assets/public as /, small phone copies as /lite/).
+// What the studio page asks the server for, as one Hono app: the built page (src/page.mjs) at / and /_studio/, its data and
+// live events under /api/, and everything else from the film's own files (assets/public as /, small phone copies as /lite/).
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { extname, isAbsolute, join, relative } from "node:path";
 import { Readable } from "node:stream";
 import { brotliCompressSync, constants as zlibConsts, gzipSync } from "node:zlib";
 import { zValidator } from "@hono/zod-validator";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { html } from "hono/html";
 import { HTTPException } from "hono/http-exception";
+import { streamSSE } from "hono/streaming";
 import * as z from "zod";
 
 const MIME = { ".gltf": "application/json", ".glb": "model/gltf-binary", ".jpg": "image/jpeg", ".png": "image/png", ".bin": "application/octet-stream", ".js": "text/javascript", ".json": "application/json", ".wav": "audio/wav", ".webm": "audio/webm", ".jar": "application/java-archive" };
@@ -25,7 +28,7 @@ const Seen = z.object({ id: z.string() });
 
 const inside = (root, file) => { const r = relative(root, file); return r && !r.startsWith("..") && !isAbsolute(r); };
 
-export const createApi = (film) => {
+export const createApi = (film, { page, events }) => {
   // Text and geometry shrink a lot and pictures don't. Squeezed once per version, so the next visit costs nothing here either
   const packed = new Map();
   const squeeze = (c, buf, tag) => {
@@ -79,6 +82,27 @@ export const createApi = (film) => {
   };
 
   const app = new Hono();
+
+  // The page names the build it came from, so after the studio restarts it can tell whether it is still the current one
+  const build = () => createHash("md5").update(page.html() ?? "").digest("base64url");
+  app.get("/", (c) => {
+    c.header("cache-control", "no-cache");
+    const built = page.html();
+    // No page yet: the first build failed. Shown until a save fixes it
+    if (!built) return c.html(html`<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="3"><title>Studio</title><pre style="white-space:pre-wrap">Code lỗi, chưa dựng được trang. Sửa xong là trang tự tải lại.<br><br>${page.error() ?? ""}</pre>`, 503);
+    return c.html(built.replace("</head>", `<meta name="live-build" content="${build()}"></head>`));
+  });
+  app.get("/_studio/*", serveStatic({ root: page.dir, precompressed: true, onFound: (_, c) => c.header("cache-control", "public, max-age=31536000, immutable") }));
+
+  // Saves and jobs, as they happen (see send in live.mjs). A browser reconnects to this by itself, without reloading the page
+  app.get("/api/events", (c) => streamSSE(c, async (stream) => {
+    events.add(stream);
+    await stream.writeSSE({ event: "hello", data: build() });
+    const alive = setInterval(() => stream.write(": alive\n\n").catch(() => {}), 25e3); // a proxy drops a line that stays quiet
+    await new Promise((done) => stream.onAbort(done));
+    clearInterval(alive);
+    events.delete(stream);
+  }));
   app.use("/api/*", bodyLimit({ maxSize: 20 * 1024 * 1024 }));
 
   app.get("/api/notes", (c) => fresh(c, film.notes.read()));
@@ -117,7 +141,7 @@ export const createApi = (film) => {
   app.get("/api/mix.wav", (c) => (existsSync(film.MIX) ? sendFile(c, film.MIX, { store: true }) : c.body(null, 404)));
   app.get("/api/mix_small.webm", async (c) => { if (!existsSync(film.MIX)) return c.body(null, 404); await film.smallMix(); return sendFile(c, film.MIX_SMALL); });
 
-  // The film's own files, last: what Vite didn't answer
+  // The film's own files, last
   app.get("*", (c) => {
     const url = decodeURIComponent(c.req.path);
     const lite = url.startsWith("/lite/");

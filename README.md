@@ -59,9 +59,9 @@ node src/live.mjs 4321
 
 `init.mjs` adds a `file:` dependency, so `node_modules/live-studio` is a link to this repo, and writes three small files into the film: `src/live.mjs` and `notes_report.py` open the studio on this film, and `src/edit.ts` hands `edit.json` to it. It refuses if a file about to be removed holds changes this repo never had, so they can be moved here first. Any part a project doesn't have yet is copied from the demo, to replace.
 
-The film owns everything else: `src/scene.ts`, `src/edit.json`, `src/timing.ts`, `voice_map.py`, `voice_edit.py`, `sound.py`, `make_lite.py`, `assets/`. The `demo/` folder is the example of all of them. The studio's Vite server finds them through two names: `film/...` is the film's `src/`, `live-studio/edit` is `src/edit.ts` here.
+The film owns everything else: `src/scene.ts`, `src/edit.json`, `src/timing.ts`, `voice_map.py`, `voice_edit.py`, `sound.py`, `make_lite.py`, `assets/`. The `demo/` folder is the example of all of them. The studio's Vite build finds them through two names: `film/...` is the film's `src/`, `live-studio/edit` is `src/edit.ts` here.
 
-Every film runs the same studio, so a change here affects them all. The page is a React app in `app/` (shadcn/ui on Base UI, Tailwind, Zustand) served by Vite, so saving a file there updates open pages in place; saving the film's own code reloads them at the same second. A change to the server, anything in `src/`, needs each studio restarted.
+Every film runs the same studio, so a change here affects them all. The page is a React app in `app/` (shadcn/ui on Base UI, Tailwind, Zustand) that Vite builds together with the film's code, and builds again on every save of either (src/page.mjs). An open page reloads at the same second once nobody is mid-note, and only when the build came out different: a saved comment reloads nothing. Live events reach the page over Server-Sent Events, which reconnect by themselves, so a phone whose screen locked picks up where it was. A change to the server, anything in `src/`, needs each studio restarted.
 
 Replace `src/scene.ts`. It exports `SHOTS`, `SHOTS_OUT`, `DURATION`, `applyEdit` and `buildScene(canvas, W, H, draft)`, which returns `draw(t)` with `draw.tools` attached. The demo scene shows the whole contract in about 80 lines, and `draw(t)` must be able to draw any moment straight away.
 
@@ -79,4 +79,4 @@ All timing lives in `src/edit.json`, in the voice's original seconds, so that ac
 
 ## License
 
-MIT. Built on [three.js](https://threejs.org), [Vite](https://vite.dev), [React](https://react.dev), [shadcn/ui](https://ui.shadcn.com), [Base UI](https://base-ui.com), [Tailwind CSS](https://tailwindcss.com), [Hono](https://hono.dev), [Zustand](https://zustand.docs.pmnd.rs), [TanStack Hotkeys](https://tanstack.com/hotkeys), [Zod](https://zod.dev) and [Lucide](https://lucide.dev), all MIT except Lucide (ISC).
+MIT. Built on [three.js](https://threejs.org), [Vite](https://vite.dev), [React](https://react.dev), [shadcn/ui](https://ui.shadcn.com), [Base UI](https://base-ui.com), [Tailwind CSS](https://tailwindcss.com), [Hono](https://hono.dev), [Zustand](https://zustand.docs.pmnd.rs), [TanStack Hotkeys](https://tanstack.com/hotkeys), [Zod](https://zod.dev), [vite-plugin-compression2](https://github.com/nonzzz/vite-plugin-compression) and [Lucide](https://lucide.dev), all MIT except Lucide (ISC).

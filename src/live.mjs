@@ -3,63 +3,47 @@
 // or an audio file remixes.
 import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { getRequestListener } from "@hono/node-server";
-import compression from "compression";
-import { createServer as createVite } from "vite";
 import { createApi } from "./api.mjs";
-import { openFilm, STUDIO } from "./film.mjs";
-import { filmPlugin } from "./vite_film.mjs";
+import { openFilm } from "./film.mjs";
+import { buildPage } from "./page.mjs";
 
 const PORT = Number(process.argv[2]) || 4321;
 const LAN = process.argv.includes("--lan");
 
-let vite;
-const send = (event, data = "") => vite?.ws.send(`live:${event}`, data);
+const events = new Set(); // open pages, see /api/events
+const send = (event, data = "") => { for (const page of events) page.writeSSE({ event, data: String(data) }).catch(() => events.delete(page)); };
 let film;
 try { film = openFilm(process.env.LIVE_PROJECT ?? process.cwd(), { send }); } catch (e) { console.error(e.message); process.exit(1); }
 
-// No password here, so nothing but this machine and names the film lists may even ask. A website can point its own name at
-// this machine (DNS rebinding) or post to it from the visitor's browser
-const knownHost = (host) => { const n = (host ?? "").replace(/:\d+$/, "").toLowerCase(); return n === "localhost" || n === "[::1]" || /^\d+\.\d+\.\d+\.\d+$/.test(n) || film.hosts.includes(n); };
-const fromElsewhere = (req) => { try { return !!req.headers.origin && new URL(req.headers.origin).host !== req.headers.host; } catch { return true; } };
-
-const http = createServer();
-vite = await createVite({
-  configFile: join(STUDIO, "vite.config.ts"),
-  // custom: the film's files live at any path, so an unknown path is a 404 from them, never the page (Vite's spa fallback)
-  appType: "custom",
-  server: { middlewareMode: true, ws: { server: http }, allowedHosts: film.hosts },
-  plugins: [filmPlugin(film, { onCode: (file) => { send("code", file); film.versions.changed(); } })],
+const page = await buildPage(film, {
+  onChange: () => { send("code"); film.versions.changed(); },
+  onError: (message) => { console.log(message); send("build-error", message); },
 });
-const api = getRequestListener(createApi(film).fetch);
-const page = async (req, res) => {
-  try {
-    const html = await vite.transformIndexHtml(req.url, await readFile(join(STUDIO, "app/index.html"), "utf8"));
-    res.setHeader("content-type", "text/html; charset=utf-8");
-    res.setHeader("cache-control", "no-cache");
-    res.end(html);
-  } catch (e) { vite.ssrFixStacktrace(e); res.statusCode = 500; res.end(e.message); }
+
+// No password here, so nothing but this machine and names the film lists may even ask. A website can point its own name at
+// this machine (DNS rebinding), or make the visitor's browser ask it for something. Browsers say where a request comes from
+// (Fetch Metadata): another site may link to the studio, nothing more. Origin covers the browsers that don't say
+const knownHost = (host) => { const n = (host ?? "").replace(/:\d+$/, "").toLowerCase(); return n === "localhost" || n === "[::1]" || /^\d+\.\d+\.\d+\.\d+$/.test(n) || film.hosts.includes(n); };
+const fromElsewhere = (req) => {
+  const site = req.headers["sec-fetch-site"];
+  if (site) return site !== "same-origin" && site !== "none" && !(req.method === "GET" && req.headers["sec-fetch-mode"] === "navigate" && req.headers["sec-fetch-dest"] === "document");
+  if (req.method === "GET" || req.method === "HEAD") return false;
+  try { return !!req.headers.origin && new URL(req.headers.origin).host !== req.headers.host; } catch { return true; }
 };
-// Vite's dev server sends code uncompressed, about 25 MB on a phone's first visit. The API squeezes its own files, and a byte
-// range of a file must come back as those bytes
-const compress = compression({ filter: (req, res) => !req.headers.range && compression.filter(req, res) });
-http.on("request", (req, res) => {
-  if (!knownHost(req.headers.host) || (req.method !== "GET" && req.method !== "HEAD" && fromElsewhere(req))) { res.statusCode = 403; res.end(); return; }
-  try { decodeURI(req.url); } catch { res.statusCode = 400; res.end(); return; } // a path no file can have, before Vite or Hono trip on it
+
+const api = getRequestListener(createApi(film, { page, events }).fetch);
+const http = createServer((req, res) => {
+  if (!knownHost(req.headers.host) || fromElsewhere(req)) { res.statusCode = 403; res.end(); return; }
+  try { decodeURI(req.url); } catch { res.statusCode = 400; res.end(); return; } // a path no file can have, before Hono trips on it
   // Another site can't load the film as a script, or show the studio in a frame to steal clicks
   res.setHeader("cross-origin-resource-policy", "same-origin");
   res.setHeader("content-security-policy", "frame-ancestors 'self'");
   res.setHeader("x-content-type-options", "nosniff");
-  if (req.url.startsWith("/api/")) { api(req, res); return; }
-  compress(req, res, () => {
-    if (req.url === "/" || req.url.startsWith("/?")) page(req, res);
-    else vite.middlewares(req, res, () => api(req, res));
-  });
+  api(req, res);
 });
 // Asset files can change where no watcher sees them: looked at while someone is watching, so a page knows soon enough
-setInterval(() => { if (vite.ws.clients.size) film.versions.changed(); }, 30e3);
+setInterval(() => { if (events.size) film.versions.changed(); }, 30e3);
 film.start();
 
 // This machine only, unless asked: --lan opens it to the network for a phone, and nothing here asks for a password

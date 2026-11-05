@@ -212,7 +212,7 @@ const drawDetail = () => {
 };
 
 export const drawTimelines = () => { if (!S.el) return; drawOverview(); drawDetail(); };
-export const zoomSpan = (k: number) => { span = Math.max(6, Math.min(DURATION, span * k)); sessionStorage.setItem("span", String(span)); drawTimelines(); };
+export const zoomSpan = (k: number) => { span = Math.max(6, Math.min(DURATION, span * k)); stored.set("span", String(span), sessionStorage); drawTimelines(); };
 
 const boxAt = (e: PointerEvent) => {
   const r = S.el.detail.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;

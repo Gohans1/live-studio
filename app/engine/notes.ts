@@ -201,7 +201,7 @@ export const closeNote = (stay = false) => {
   setDraft("");
   ui.blurNote();
   drawPins();
-  if (S.reloadWaiting && !stay) { sessionStorage.setItem("t", String(S.t)); location.reload(); return; } // with an Undo showing, the reload waits for the next stop
+  if (S.reloadWaiting && !stay) { stored.set("t", String(S.t), sessionStorage); location.reload(); return; } // with an Undo showing, the reload waits for the next stop
   if (resume) setPlaying(true);
 };
 // Hủy asks nothing: the words stay one press away in case it was a slip

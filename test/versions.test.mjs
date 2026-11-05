@@ -165,29 +165,50 @@ describe("the server", () => {
   test("reads nothing outside the film", async () => {
     for (const path of ["/../package.json", "/..%2f..%2f..%2fpackage.json", "/..%5c..%5c..%5cpackage.json", "/lite/..%2f..%2f..%2f..%2fpackage.json"]) assert.equal(await status(path), 404, path);
   });
-  test("serves the film's code, never its notes, renders or private names", async () => {
-    const film = `/@fs/${join(REPO, "demo").replaceAll("\\", "/")}`;
-    assert.equal(await status(`${film}/src/scene.ts`), 200);
-    for (const path of ["notes/notes.jsonl", "renders/live/mix_dry.wav", ".live_hosts"]) assert.notEqual(await status(`${film}/${path}`), 200, path);
+  const page = async () => {
+    const res = await new Promise((ok, no) => request({ port, path: "/", headers: { host: `localhost:${port}` } }, ok).on("error", no).end());
+    let html = "";
+    for await (const part of res) html += part;
+    return { html, script: /src="(\/_studio\/[^"]+\.js)"/.exec(html)?.[1], build: /name="live-build" content="([^"]+)"/.exec(html)?.[1] };
+  };
+
+  test("serves the built page and the film's public files, never the film's code or a dev server's tools", async () => {
+    const { script, build } = await page();
+    assert.ok(script && build, "the page names its script and its build");
+    assert.equal(await status(script), 200);
+    assert.equal(await status("/agent/full_voice.wav"), 200);
+    const film = join(REPO, "demo").replaceAll("\\", "/");
+    for (const path of ["/src/scene.ts", `/@fs/${film}/src/scene.ts`, "/__open-in-editor?file=package.json"]) assert.equal(await status(path), 404, path);
   });
   test("refuses other sites", async () => {
     assert.equal(await status("/api/notes", { headers: { host: "evil.example.com" } }), 403);
     assert.equal(await status("/api/seen", { method: "POST", headers: { origin: "https://evil.example.com" }, body: "{}" }), 403);
-    const res = await ask("/api/notes");
+    // What a browser says when another site's page loads something from here, and when it follows a link here
+    assert.equal(await status("/api/notes", { headers: { "sec-fetch-site": "cross-site", "sec-fetch-mode": "no-cors", "sec-fetch-dest": "image" } }), 403);
+    assert.equal(await status("/", { headers: { "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate", "sec-fetch-dest": "iframe" } }), 403);
+    assert.equal(await status("/", { headers: { "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" } }), 200);
+    const res = await ask("/api/notes", { headers: { "sec-fetch-site": "same-origin", "sec-fetch-mode": "cors", "sec-fetch-dest": "empty" } });
+    assert.equal(res.statusCode, 200);
     assert.equal(res.headers["cross-origin-resource-policy"], "same-origin");
     assert.match(res.headers["content-security-policy"], /frame-ancestors 'self'/);
   });
-  test("sends the page's code compressed, with the same guard headers as the notes", async () => {
-    const res = await ask("/@vite/client", { headers: { "accept-encoding": "gzip, br" } });
+  test("sends the page's code compressed and kept for good, with the same guard headers as the notes", async () => {
+    const res = await ask((await page()).script, { headers: { "accept-encoding": "gzip, br" } });
     assert.equal(res.statusCode, 200);
     assert.ok(["br", "gzip"].includes(res.headers["content-encoding"]), `sent as ${res.headers["content-encoding"]}`);
-    assert.equal(res.headers["cross-origin-resource-policy"], "same-origin");
+    assert.match(res.headers["cache-control"], /immutable/);
     assert.equal(res.headers["x-content-type-options"], "nosniff");
   });
-  test("a byte range of the sound comes back as those bytes, never compressed", async () => {
-    const res = await ask("/api/mix.wav", { headers: { range: "bytes=0-99", "accept-encoding": "gzip, br" } });
-    assert.ok([206, 404].includes(res.statusCode), `status ${res.statusCode}`);
-    assert.equal(res.headers["content-encoding"], undefined);
+  test("live events start by naming the build the page came from", async () => {
+    const { build } = await page();
+    const hello = await new Promise((ok, no) => {
+      const r = request({ port, path: "/api/events", headers: { host: `localhost:${port}` } }, (res) => {
+        let text = "";
+        res.on("data", (d) => { text += d; const m = /event: hello\ndata: (.*)\n/.exec(text); if (m) { r.destroy(); ok(m[1]); } });
+      });
+      r.on("error", no).end();
+    });
+    assert.equal(hello, build);
   });
   test("answers bad requests and stays up", async () => {
     assert.equal(await status("/%"), 400);

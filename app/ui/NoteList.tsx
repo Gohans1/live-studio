@@ -124,11 +124,12 @@ export function NoteList() {
   }, [tab, nearNote, nearChange, editing]);
 
   const savedText = saved === "fail" ? "Chưa gửi được, vẫn giữ trên máy này, đang thử lại" : saved === "busy" ? "Đang lưu…" : notes.length ? "Đã lưu hết" : "";
-  const trigger = "h-full flex-none px-2.5 text-[13px] pointer-coarse:px-3";
+  const trigger = "h-full flex-none px-2.5 text-[13px] pointer-coarse:px-3 sideways:px-2";
   return (
     <Tabs value={tab} onValueChange={(v) => { set({ tab: v as Tab }); if (v === "diff") loadVersions(); }} className="min-h-0 flex-1 gap-0">
-      <div className="flex flex-none items-center gap-1 px-3 pt-2.5 pb-2 upright:py-1.5 sideways:py-1">
-        <TabsList variant="line" className="h-8 pointer-coarse:h-10 sideways:h-9">
+      <div className="flex flex-none flex-wrap items-center gap-x-1 px-3 pt-2.5 pb-2 upright:py-1.5 sideways:py-1">
+        {/* A narrow column wraps the save status under the tabs, then lets the tabs scroll rather than push past the screen */}
+        <TabsList variant="line" className="h-8 max-w-full min-w-0 overflow-x-auto overscroll-x-contain pointer-coarse:h-10 sideways:h-9">
           <TabsTrigger value="open" className={trigger}>Cần sửa ({open.length})</TabsTrigger>
           <TabsTrigger value="history" className={trigger}>Lịch sử ({old.length})</TabsTrigger>
           {showDiff && <TabsTrigger value="diff" className={trigger}>Thay đổi ({changes.length})</TabsTrigger>}
