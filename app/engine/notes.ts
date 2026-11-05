@@ -193,17 +193,16 @@ export const editOldNote = (n: Note) => {
   const { compose, draft } = get();
   if (compose?.editing === n.id) { ui.focusNote(); return; }
   const wasPlaying = compose ? compose.resume : S.playing;
-  if (compose && draft.trim()) { set({ compose: { ...compose, resume: false } }); saveNote(); } else if (compose) closeNote(true);
+  if (compose && draft.trim()) { set({ compose: { ...compose, resume: false } }); saveNote(); } else if (compose) closeNote();
   if (S.playing) setPlaying(false);
   openBox({ t: S.t, shot: n.shot, shotName: n.shotName ?? "", pin: null, resume: wasPlaying, editing: n.id, time: stamp(noteAt(n)), original: n.text }, n.text);
 };
-export const closeNote = (stay = false) => {
+export const closeNote = () => {
   const resume = get().compose?.resume;
   set({ compose: null });
   setDraft("");
   ui.blurNote();
   drawPins();
-  if (S.reloadWaiting && !stay) { stored.set("t", String(S.t), sessionStorage); location.reload(); return; } // with an Undo showing, the reload waits for the next stop
   if (resume) setPlaying(true);
 };
 // Hủy asks nothing: the words stay one press away in case it was a slip
@@ -211,7 +210,7 @@ export const cancelNote = () => {
   const { compose: was, draft: words } = get();
   if (!was) return;
   const lost = !!words.trim() && words.trim() !== (was.original ?? "");
-  closeNote(lost);
+  closeNote();
   if (lost) showUndo(was.editing ? `Đã bỏ chữ vừa sửa ở ${was.time}` : "Đã hủy ghi chú", () => {
     if (get().compose) { set({ compose: { ...get().compose!, resume: false } }); saveNote(); }
     if (S.playing) setPlaying(false);
@@ -230,7 +229,7 @@ export const saveNote = () => {
     if (was) editNote(id, body);
     else { queueOp(id, { restore: true, text: body }); flushNotes(); } // removed elsewhere meanwhile: these words still count
     const at = compose.time;
-    closeNote(true);
+    closeNote();
     showUndo(`Đã ghi đè ghi chú ${at}`, () => editNote(id, before));
     return;
   }
@@ -259,7 +258,7 @@ export const removeNote = (n: Note) => {
   changed(get().notes.filter((x) => x.id !== n.id));
   queueOp(n.id, { remove: true });
   flushNotes();
-  if (get().compose?.editing === n.id) closeNote(true);
+  if (get().compose?.editing === n.id) closeNote();
   showUndo(`Đã xóa ghi chú ${n.time}`, () => {
     changed([...get().notes, n]);
     queueOp(n.id, { restore: true, text: n.text });

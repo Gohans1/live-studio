@@ -22,6 +22,7 @@ export type Tab = "open" | "diff";
 
 export interface StudioState {
   ready: boolean;
+  newBuild: boolean; // the film's code changed since this page loaded
   loading: string;
   error: string | null;
   status: string;
@@ -63,6 +64,7 @@ export interface StudioState {
 
 export const studio = createStore<StudioState>(() => ({
   ready: false,
+  newBuild: false,
   loading: "đang dựng căn phòng…",
   error: null,
   status: "",

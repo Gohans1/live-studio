@@ -28,7 +28,6 @@ export const S = {
   voiceOut: [] as Line[],
   clockStart: 0,
   dragging: null as { resume: boolean } | null,
-  reloadWaiting: false,
   failedFile: "",
 };
 

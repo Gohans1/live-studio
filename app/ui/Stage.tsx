@@ -3,12 +3,13 @@
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import type { Bind } from "../App";
+import { reloadNow } from "../engine/player";
 import { set, useStudio } from "../engine/store";
 import { OptionChips } from "./OptionChips";
 
 function Badges() {
   const free = useStudio((s) => s.free), final = useStudio((s) => s.final), loop = useStudio((s) => s.loop);
-  const contract = useStudio((s) => s.contract.length), status = useStudio((s) => s.status);
+  const contract = useStudio((s) => s.contract.length), status = useStudio((s) => s.status), newBuild = useStudio((s) => s.newBuild);
   const badge = "rounded-md bg-alarm px-2 py-0.5 text-xs font-semibold text-picture";
   return (
     <div className="mr-45 flex min-h-8.5 flex-wrap items-start gap-1.5 self-stretch upright:mr-25 upright:min-h-5.5 sideways:mr-25 sideways:min-h-5.5">
@@ -16,6 +17,7 @@ function Badges() {
       {final && <b className={badge}>CHẤT LƯỢNG FINAL</b>}
       {loop && <b className={badge}>LẶP SHOT</b>}
       {contract > 0 && <b className={badge}>PHIM SAI QUY ƯỚC ({contract})</b>}
+      {newBuild && <Button size="sm" className="pointer-events-auto h-7 rounded-md px-2.5 text-xs font-semibold" title="Code phim vừa đổi. Tải lại ở đúng giây này; chữ đang gõ dở vẫn còn" onClick={reloadNow}>Có bản mới · Tải lại</Button>}
       <span role="status" className="max-w-full truncate rounded-md bg-black/72 px-2 py-px text-xs empty:hidden">{status}</span>
     </div>
   );

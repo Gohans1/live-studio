@@ -1,5 +1,5 @@
-// The studio's player: the same scene as the render, drawn live, with the sound as the clock. Saving the film's code reloads
-// at the same second once nobody is mid-note or watching.
+// The studio's player: the same scene as the render, drawn live, with the sound as the clock. Saving the film's code shows
+// "Có bản mới" on the picture; the page reloads at the same second only when that is pressed.
 import * as THREE from "three";
 import * as FILM from "film/scene";
 import { buildScene, DURATION, SHOTS_OUT as SHOTS } from "film/scene";
@@ -43,9 +43,10 @@ export const setPlaying = (p: boolean) => {
   if (p) { S.clockStart = performance.now() - S.t * 1000; if (!startSound()) say("tiếng ngắn hơn phim: từ đây chỉ có hình, chờ trộn lại tiếng"); audioCtx.resume(); }
   else { audio.pause(); seek(Math.round(S.t * FPS) / FPS); }
 };
-// A code change waits for a stop: the film reloads at the same second
-const reloadNow = () => { stored.set("t", String(S.t), sessionStorage); location.reload(); };
-export const togglePlay = () => { setPlaying(!S.playing); if (!S.playing && S.reloadWaiting) reloadNow(); };
+// The film's new code waits for the creator, who loads it with "Có bản mới" when it suits: an agent fixing notes saves code
+// all through a review, and a reload on every stop broke the note being written next. Same second after; a draft comes back
+export const reloadNow = () => { stored.set("t", String(S.t), sessionStorage); location.reload(); };
+export const togglePlay = () => setPlaying(!S.playing);
 export const step = (seconds: number) => seek(S.t + seconds);
 export const jumpShot = (d: number) => { const i = shotIndex(S.t); seek(d < 0 && S.t - SHOTS[i].t > 0.4 ? SHOTS[i].t : SHOTS[Math.max(0, Math.min(SHOTS.length - 1, i + d))].t); };
 export const setLoop = (on: boolean) => { window.__loopFrom = on ? S.t : undefined; set({ loop: on }); };
@@ -380,8 +381,7 @@ const attachPicture = () => {
 
 // ---------- The film's saves, from the studio's server (app/events.ts)
 const listen = () => {
-  // A code change waits for a note being spoken or a film playing: reloading now would throw the words away
-  const codeChanged = () => { if (get().compose || S.playing) { S.reloadWaiting = true; say("code đổi, sẽ tải lại khi dừng", 0); return; } reloadNow(); };
+  const codeChanged = () => set({ newBuild: true });
   onEvent("code", codeChanged);
   onEvent("build-error", (message) => showError(`Code lỗi, trang vẫn chạy bản trước. Sửa xong là trang tự tải lại.\n\n${message}`));
   onEvent("sound-start", () => say("đang trộn tiếng…"));

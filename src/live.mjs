@@ -1,5 +1,5 @@
 // The studio for one film: node src/live.mjs [port] [--lan] inside the film (its src/live.mjs sets LIVE_PROJECT), then open
-// http://localhost:4321. Saving the film's code reloads the picture at the same second once nobody is mid-note; saving sound.py
+// http://localhost:4321. Saving the film's code offers "Có bản mới" on the page, never reloading it unasked; saving sound.py
 // or an audio file remixes.
 import { writeFileSync } from "node:fs";
 import { createServer } from "node:http";
