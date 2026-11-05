@@ -22,10 +22,12 @@ import { HelpTip } from "./HelpTip";
 const Keys = ({ keys }: { keys: string[] }) => (
   <span aria-hidden className="inline-flex items-center gap-0.5 pointer-coarse:hidden">{keys.map((k) => <Kbd key={k}>{k}</Kbd>)}</span>
 );
-const Section = ({ title, help, children, className }: { title: ReactNode; help?: [string, string]; children: ReactNode; className?: string }) => (
-  <section className={`flex flex-col gap-0.5 ${className ?? ""}`}>
-    <h3 className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">{title}{help && <HelpTip label={help[0]}>{help[1]}</HelpTip>}</h3>
-    {children}
+// Each part's name sits above one box holding all of its controls, so a control never reads as part of the next section.
+// rows: one setting per line with a rule between them; otherwise the box holds a block (a list, buttons, text)
+const Section = ({ title, help, children, rows, warn, className }: { title: ReactNode; help?: [string, string]; children: ReactNode; rows?: boolean; warn?: boolean; className?: string }) => (
+  <section className={`flex flex-col gap-2 ${className ?? ""}`}>
+    <h3 className={`flex min-h-5 items-center gap-1.5 px-1 text-[13px] font-semibold ${warn ? "text-warn" : ""}`}>{title}{help && <HelpTip label={help[0]}>{help[1]}</HelpTip>}</h3>
+    <div className={`rounded-xl ${warn ? "bg-warn-bg" : "bg-card"} ${rows ? "divide-y divide-border px-3" : "flex flex-col gap-2 p-3"}`}>{children}</div>
   </section>
 );
 function SwitchRow({ id, label, keys, help, checked, onChange }: { id: string; label: string; keys?: string[]; help?: string; checked: boolean; onChange: (on: boolean) => void }) {
@@ -57,7 +59,7 @@ function Options() {
   return (
     <Section title={<>Lựa chọn <span aria-hidden className="inline-flex items-center gap-0.5 pointer-coarse:hidden"><Kbd>0</Kbd>–<Kbd>9</Kbd></span></>} help={["Lựa chọn", "Mỗi nhóm là một đồ vật hay một tiếng có nhiều phương án. Chọn một phương án là thấy, nghe ngay. Xem hoặc Nghe: nhảy tới chỗ có nó và phát. Chốt: phim, cả bản final, dùng phương án này (ghi vào choices.json). Chốt lại phương án khác lúc nào cũng được."]}>
       <Select items={items} value={groupName} onValueChange={(v) => { set({ groupName: v as string }); S.dirty = true; }}>
-        <SelectTrigger className="mb-1 h-9 w-full" aria-label="Nhóm lựa chọn"><SelectValue /></SelectTrigger>
+        <SelectTrigger className="h-9 w-full" aria-label="Nhóm lựa chọn"><SelectValue /></SelectTrigger>
         <SelectContent>{items.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent>
       </Select>
       <div className="flex flex-col gap-1">
@@ -67,7 +69,7 @@ function Options() {
             variant="secondary"
             aria-pressed={o.id === g.pick}
             title={o.source}
-            className="h-auto min-h-9 justify-between gap-2 bg-card text-left text-sm font-normal whitespace-normal aria-pressed:bg-tint aria-pressed:text-primary"
+            className="h-auto min-h-9 justify-between gap-2 text-left text-sm font-normal whitespace-normal aria-pressed:bg-tint aria-pressed:text-primary"
             onClick={() => choose(g.name, i)}
           >
             <span>{i} {o.title}</span>
@@ -75,10 +77,10 @@ function Options() {
           </Button>
         ))}
       </div>
-      <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">
+      <p className="text-xs text-muted-foreground tabular-nums">
         {r.length ? `${g.picture ? "Thấy" : "Nghe"} lúc ${r.slice(0, 4).map(rangeText).join(", ")}${r.length > 4 ? ` và ${r.length - 4} chỗ nữa` : ""}` : "Không lúc nào thấy trên hình"}
       </p>
-      <div className="mt-1.5 flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5">
         {!g.picture && <>
           <div className="flex h-9 min-w-0 flex-1 items-center" title="To nhỏ"><Slider min={0} max={2} step={0.05} value={g.gain} onValueChange={(v: number | readonly number[]) => setGain(g.name, typeof v === "number" ? v : v[0])} aria-label="To nhỏ của tiếng đang thử" format={{ style: "percent" }} /></div>
           <span className="min-w-[4ch] text-end text-muted-foreground tabular-nums">{Math.round(g.gain * 100)}%</span>
@@ -103,7 +105,7 @@ const KEYS: [ReactNode, ReactNode][] = [
   ["Lăn chuột", "trên timeline: phóng to"],
   [<Kbd>B</Kbd>, "những gì đổi từ bản xem lần cuối"],
   [<><Kbd>Z</Kbd><Kbd>X</Kbd></>, "chỗ đổi trước, sau"],
-  [<Kbd>F</Kbd>, <>camera tự do: kéo lia, lăn tiến lùi, chuột phải dời, Shift+kéo xoay quanh, <Kbd>W</Kbd><Kbd>A</Kbd><Kbd>S</Kbd><Kbd>D</Kbd><Kbd>Q</Kbd><Kbd>E</Kbd> đi, <Kbd>-</Kbd><Kbd>=</Kbd> ống kính</>],
+  [<Kbd>F</Kbd>, <>camera tự do: kéo lia, lăn tiến lùi, chuột phải dời, Shift+kéo xoay quanh, giữ <Kbd>W</Kbd><Kbd>A</Kbd><Kbd>S</Kbd><Kbd>D</Kbd><Kbd>Q</Kbd><Kbd>E</Kbd> đi (thêm Shift: nhanh gấp 3), <Kbd>-</Kbd><Kbd>=</Kbd> ống kính</>],
   [<><Kbd>K</Kbd> <Kbd>G</Kbd></>, "chép góc máy; xem final"],
   [<><Kbd>0</Kbd>–<Kbd>9</Kbd></>, "chọn phương án của nhóm đang hiện"],
   [<Kbd>Esc</Kbd>, "đóng cài đặt"],
@@ -137,10 +139,10 @@ export function Settings() {
         <h2 id="settings-title" className="text-[15px] font-semibold">Cài đặt</h2>
         <Button variant="ghost" size="icon" className="size-10 text-muted-foreground" aria-label="Đóng cài đặt" title="Esc" onClick={() => set({ settingsOpen: false })}><X /></Button>
       </div>
-      <div data-arrow-scroll className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto overscroll-contain px-3 pt-1 pb-3">
+      <div data-arrow-scroll className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto overscroll-contain px-3 pt-1 pb-3">
         {s.contract.length > 0 && (
           <Section title="Phim sai quy ước">
-            <p className="mb-1.5 text-xs text-muted-foreground">Gửi đoạn này cho AI đang làm phim, nó cũng thấy ở terminal của studio. Quy ước: docs/film-contract.md trong live-studio.</p>
+            <p className="text-xs text-muted-foreground">Gửi đoạn này cho AI đang làm phim, nó cũng thấy ở terminal của studio. Quy ước: docs/film-contract.md trong live-studio.</p>
             <pre className="max-h-[40vh] overflow-auto overscroll-contain rounded-lg bg-warn-bg px-2.5 py-2 font-mono text-xs/normal whitespace-pre-wrap wrap-anywhere">{s.contract.join("\n\n")}</pre>
           </Section>
         )}
@@ -155,10 +157,10 @@ export function Settings() {
             <Button variant="secondary" className="col-span-2 h-11" onClick={() => zoomSpan(1 / 1.5)}>Timeline +</Button>
           </div>
         </Section>
-        <Section title="Xem">
+        <Section title="Xem" rows>
           <Row>
             <span className="text-sm whitespace-nowrap">Tốc độ</span>
-            <ToggleGroup value={[String(s.rate)]} onValueChange={(v: string[]) => { if (v[0]) setRate(Number(v[0])); }} aria-label="Tốc độ" spacing={0.5} className="rounded-[10px] bg-card p-0.5">
+            <ToggleGroup value={[String(s.rate)]} onValueChange={(v: string[]) => { if (v[0]) setRate(Number(v[0])); }} aria-label="Tốc độ" spacing={0.5} className="rounded-[10px] bg-background p-0.5">
               {["0.5", "1", "1.5", "2"].map((v) => (
                 <ToggleGroupItem key={v} value={v} className="h-8 px-2.5 text-sm text-muted-foreground tabular-nums aria-pressed:bg-raised-3 aria-pressed:font-semibold aria-pressed:text-foreground pointer-coarse:h-10">{v}×</ToggleGroupItem>
               ))}
@@ -177,7 +179,7 @@ export function Settings() {
           </Row>
         </Section>
         <Options />
-        <Section title="Camera" className="pointer-coarse:hidden">
+        <Section title="Camera" rows className="pointer-coarse:hidden">
           <SwitchRow id="free-cam" label="Camera tự do" keys={["F"]} checked={s.free} onChange={setFree} help="Tách camera khỏi phim để tự đi quanh cảnh mà xem. Phim không đổi gì. Tắt đi là về lại góc máy thật." />
           <Row>
             <span className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -187,8 +189,11 @@ export function Settings() {
             <Button variant="secondary" size="lg" aria-label="Chép góc máy" onClick={copyCam}>Chép</Button>
           </Row>
         </Section>
-        <Section title="Ghi chú" help={["Chép ghi chú", "Chép mọi ghi chú chưa sửa xong thành một đoạn chữ, để dán cho AI ở chỗ khác."]}>
-          <Button variant="secondary" className="h-10 w-full justify-start text-sm" onClick={copyAll}>Chép mọi ghi chú chưa xong</Button>
+        <Section title="Ghi chú" rows help={["Chép ghi chú", "Chép mọi ghi chú chưa sửa xong thành một đoạn chữ, để dán cho AI ở chỗ khác."]}>
+          <Row>
+            <span className="text-sm">Mọi ghi chú chưa xong</span>
+            <Button variant="secondary" size="lg" aria-label="Chép mọi ghi chú chưa xong" onClick={copyAll}>Chép</Button>
+          </Row>
         </Section>
         <Section title="Timeline" help={["Timeline", "Bấm một khối trên timeline (câu thoại hay hành động) để xem nó nằm ở giây nào, ngay chữ nào."]}>
           <div className="flex flex-col gap-0.5 text-[13px] text-muted-foreground first:*:text-foreground">
@@ -196,17 +201,17 @@ export function Settings() {
           </div>
         </Section>
         {!AWAY && (
-          <Section title={<span className="text-warn">Nặng, phải chờ</span>} className="rounded-lg bg-warn-bg px-2.5 py-2">
-            <p className="mb-1 text-xs">Tốn thêm RAM và card đồ hoạ. Đang render hay chạy việc nặng khác thì máy có thể giật.</p>
+          <Section title="Nặng, phải chờ" warn>
+            <p className="text-xs">Tốn thêm RAM và card đồ hoạ. Đang render hay chạy việc nặng khác thì máy có thể giật.</p>
             <SwitchRow id="final" label="Xem chất lượng final" keys={["G"]} checked={s.final} onChange={setFinal} help="Dựng thêm một bản 1920×1080 đủ hiệu ứng như video thật, rồi vẽ khung hình đang dừng bằng bản đó. Bật lên thì dừng phát. Lần đầu mất khoảng 10 giây." />
           </Section>
         )}
         <details className="group pointer-coarse:hidden">
-          <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-muted-foreground [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1.5 px-1 text-[13px] font-semibold [&::-webkit-details-marker]:hidden">
             <span aria-hidden className="mx-0.5 size-1.5 -rotate-45 border-r-[1.5px] border-b-[1.5px] border-current group-open:rotate-45" />
             Phím tắt
           </summary>
-          <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
+          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 rounded-xl bg-card p-3 text-[13px]">
             {KEYS.map(([k, v], i) => (
               <div key={i} className="contents">
                 <dt className="flex flex-wrap items-center gap-0.5">{k}</dt>
