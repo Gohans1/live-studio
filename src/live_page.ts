@@ -640,6 +640,7 @@ const drawWave = (g, a, b, w, y, h) => {
 let overBg = null;
 const drawOverview = () => {
   const c = $("over"), { g, w, h } = sized(c);
+  if (!c.width || !c.height) return; // a page loaded out of sight has no size yet; the resize observer draws it once it has
   if (!overBg || overBg.width !== c.width) {
     overBg = document.createElement("canvas"); overBg.width = c.width; overBg.height = c.height;
     const b = overBg.getContext("2d"), d = c.width / w;
@@ -992,6 +993,7 @@ async function main() {
   sessionStorage.removeItem("loadTries");
   if (AWAY) loadWholeMix();
   tools = render.tools;
+  $("revSet").hidden = !render.describe;
   $("load").textContent = "";
   flash(`dựng xong trong ${((performance.now() - t0) / 1000).toFixed(1)}s`);
   const extras = Promise.all([timeline, loadTrials(), loadSounds()]).then(() => { refreshTimes(); dirty = true; });
@@ -1013,7 +1015,7 @@ async function main() {
     if (dirty) {
       dirty = false;
       const a = performance.now();
-      if (!cmp.on || cmp.show !== "before" || !cmp.film) render(t); // only the old version shows: nothing to draw on this side
+      if (!cmp.on || cmp.show !== "before" || !cmp.film) { render(t); drawReview(); } // only the old version shows: nothing to draw on this side
       drawBefore();
       lastDraw = performance.now() - a;
       drawMs = drawMs * 0.9 + lastDraw * 0.1;
@@ -1327,6 +1329,42 @@ $("capB").onclick = () => {
   showCaptions(captionsOn);
   try { localStorage.setItem("captions", captionsOn ? "on" : "off"); } catch {}
 };
+// The film's own list of what is going on at t (draw.describe → [{ head, lines: [{ text, fresh }] }]). Read right after
+// render(t): its "in frame" part uses the camera draw left behind. The DOM is rebuilt only when the list changes
+let reviewKey = "";
+const drawReview = () => {
+  const box = $("review");
+  if (!reviewOn || !render.describe) { box.hidden = true; reviewKey = ""; return; }
+  let sections;
+  try { sections = render.describe(t); } catch (e) { sections = [{ head: "DESCRIBE FAILED", lines: [{ text: String(e?.message ?? e).slice(0, 200) }] }]; }
+  const key = JSON.stringify(sections);
+  box.hidden = false;
+  if (key === reviewKey) return;
+  reviewKey = key;
+  box.replaceChildren(...sections.map(({ head, lines }) => {
+    const s = document.createElement("section");
+    const h = document.createElement("h4");
+    h.textContent = head;
+    s.append(h, ...lines.map(({ text, fresh }) => {
+      const p = document.createElement("p");
+      if (fresh) { p.className = "new"; const b = document.createElement("b"); b.textContent = "NEW"; p.append(b); }
+      p.append(text);
+      return p;
+    }));
+    return s;
+  }));
+};
+let reviewOn = true;
+try { reviewOn = localStorage.getItem("review") !== "off"; } catch {}
+const setReview = (on) => {
+  reviewOn = on;
+  $("revB").setAttribute("aria-checked", on);
+  try { localStorage.setItem("review", on ? "on" : "off"); } catch {}
+  reviewKey = "";
+  dirty = true;
+};
+$("revB").setAttribute("aria-checked", reviewOn);
+$("revB").onclick = () => setReview(!reviewOn);
 for (const b of $("rate").children) b.onclick = () => { audio.defaultPlaybackRate = audio.playbackRate = Number(b.dataset.v); for (const o of $("rate").children) o.setAttribute("aria-pressed", o === b); };
 $("copyAll").onclick = () => { navigator.clipboard?.writeText(notes.filter((n) => !n.done).sort((a, b) => a.t - b.t).map((n) => `${whereText(n)}: ${n.text}`).join("\n")); flash("đã chép hết"); };
 const jump = (d) => { const i = shotIndex(t); seek(d < 0 && t - SHOTS[i].t > 0.4 ? SHOTS[i].t : SHOTS[Math.max(0, Math.min(SHOTS.length - 1, i + d))].t); };
@@ -1378,6 +1416,7 @@ addEventListener("keydown", (e) => {
   else if (k === "k" || k === "K") copyCam();
   else if ((k === "g" || k === "G") && !AWAY) setFinal(!finalOn);
   else if (k === "l" || k === "L") setLoop(!looping);
+  else if ((k === "i" || k === "I") && render?.describe) setReview(!reviewOn);
   else if (k === "m" || k === "M") toggleMute();
   else if (k === "ArrowUp" || k === "ArrowDown") setVolume((audio.muted ? (k === "ArrowUp" ? heardLevel - 0.1 : 0) : audio.volume) + (k === "ArrowUp" ? 0.1 : -0.1));
   else if (k === "Escape" && $("side").classList.contains("settings")) setSettings(false);
