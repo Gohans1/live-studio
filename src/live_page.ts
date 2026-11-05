@@ -1341,7 +1341,7 @@ $("next").onclick = () => jump(1);
 $("freeB").onclick = () => setFree(!tools.free.on);
 $("camB").onclick = () => copyCam();
 $("finalB").onclick = () => setFinal(!finalOn);
-$("finalSet").hidden = AWAY;
+$("heavySet").hidden = AWAY;
 const setLoop = (on) => { looping = on; window.__loopFrom = on ? t : undefined; $("loopB").setAttribute("aria-checked", on); $("bLoop").style.display = on ? "block" : "none"; };
 $("loopB").onclick = () => setLoop(!looping);
 // Phones leave the level to their own buttons (iOS ignores a page setting it), so there the speaker only mutes
@@ -1470,7 +1470,7 @@ addEventListener("keydown", (e) => {
   else if ((k === "i" || k === "I") && render?.describe) setReview(!reviewOn);
   else if (k === "m" || k === "M") toggleMute();
   else if (k === "ArrowUp" || k === "ArrowDown") setVolume((audio.muted ? (k === "ArrowUp" ? heardLevel - 0.1 : 0) : audio.volume) + (k === "ArrowUp" ? 0.1 : -0.1));
-  else if (k === "Escape" && $("side").classList.contains("settings")) setSettings(false);
+  else if (k === "Escape" && $("side").classList.contains("settings") && !document.querySelector(".tip:popover-open")) setSettings(false);
   else if ((k === "b" || k === "B") && !$("tabDiff").hidden) showTab(noteTab === "diff" ? "open" : "diff");
   else if ((k === "z" || k === "Z") && changes.length) nextChange(-1);
   else if ((k === "x" || k === "X") && changes.length) nextChange(1);
