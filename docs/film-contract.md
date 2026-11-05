@@ -107,9 +107,17 @@ Give each option one recording of that stretch, at the level it would have in th
 
 Written by the studio only, at the film's root (`sound_choices.json` in films that started with that name). It holds the picks for both looks and sounds, keyed by variant id or sound group: `{ "computer": { "set": "computer_beige", "gain": 1 } }`.
 
+## Load weight
+
+A page opened from a phone or over Tailscale tells the studio, once it is ready, what it downloaded (`POST /api/weight`), at each file's size on the wire. Over 10 MB, about 4 s on a phone, the terminal names the biggest files. This PC loads the full files and is not judged. The studio already compresses whatever shrinks; the rest is the film's to slim:
+
+- Load the part of an archive the page reads, not the archive. The Minecraft film's `slim_jar.py` keeps client.jar's `assets/` and `data/` and drops the Java code: 7 MB on the wire instead of 41.
+- Give phones small copies of big pictures and models with `make_lite.py` (served under `/lite/`); the film loads them by prefixing its paths with `window.__assets`, which is `/lite/` away from this PC.
+- After slimming, compare the same frames pixel by pixel against the old build before keeping it.
+
 ## Checklist for a new film or a new hook
 
 1. `node live-studio/init.mjs FILM`, then replace `src/scene.ts` and `src/edit.json` with the film.
-2. Start the studio. The terminal says `film contract, files: ok` and `film contract, code, found by the page: ok`, and no red badge shows.
+2. Start the studio. The terminal says `film contract, files: ok` and `film contract, code, found by the page: ok`, no red badge shows, and no first visit is over budget.
 3. Put the film's facts in `draw.describe`, and every choice still open in `draw.variants` or `trials.json`.
 4. Point the film's `AGENTS.md` at this page.

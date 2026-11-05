@@ -293,6 +293,16 @@ export const drawPins = () => {
 let filmProblems: string[] = [], fileProblems: string[] = [];
 const showContract = () => set({ contract: [...fileProblems, ...filmProblems] });
 const reportFilm = (list: string[]) => { filmProblems = list; showContract(); postJson("/api/contract", { problems: list }).catch(() => {}); };
+// Everything a page away from this PC fetched, at its size on the wire even when it came from the cache this time: what a
+// first visit costs. The studio warns in its terminal when that is too much (src/weight.mjs)
+const reportWeight = () => {
+  if (!AWAY) return;
+  const files = [...performance.getEntriesByType("navigation"), ...performance.getEntriesByType("resource")]
+    .map((e) => ({ url: new URL(e.name), bytes: (e as PerformanceResourceTiming).encodedBodySize }))
+    .filter(({ url, bytes }) => url.origin === location.origin && bytes > 0)
+    .map(({ url, bytes }) => ({ path: url.pathname, bytes }));
+  postJson("/api/weight", { files }).catch(() => {});
+};
 const loadContract = async () => {
   const r = await fetch("/api/contract.json").catch(() => null);
   if (!r?.ok) return;
@@ -417,7 +427,7 @@ export const start = async (el: Elements) => {
   refreshTimes();
   seek(S.t);
   loop();
-  extras.then(() => { restoreDraft(); window.__readyAt = Date.now(); });
+  extras.then(() => { restoreDraft(); window.__readyAt = Date.now(); reportWeight(); });
   loadVersions();
 };
 

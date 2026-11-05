@@ -14,6 +14,7 @@ import { html } from "hono/html";
 import { HTTPException } from "hono/http-exception";
 import { streamSSE } from "hono/streaming";
 import * as z from "zod";
+import { weighFirstVisit } from "./weight.mjs";
 
 const MIME = { ".gltf": "application/json", ".glb": "model/gltf-binary", ".jpg": "image/jpeg", ".png": "image/png", ".bin": "application/octet-stream", ".js": "text/javascript", ".json": "application/json", ".wav": "audio/wav", ".webm": "audio/webm", ".jar": "application/java-archive" };
 // The page sends null for a picture it could not make (no pin, no crop): the words still count
@@ -26,6 +27,7 @@ const NoteChange = z.object({ text: z.string().optional(), remove: z.boolean().o
 const Choose = z.object({ group: z.string().min(1), set: z.string(), gain: z.number().optional() });
 const PageProblems = z.object({ problems: z.array(z.string()) });
 const Seen = z.object({ id: z.string() });
+const PageWeight = z.object({ files: z.array(z.object({ path: z.string().max(1000), bytes: z.number().nonnegative() })).max(5000) });
 
 // Formats that are compressed inside already: trying them again only costs time on a first visit
 const PACKED = /\.(png|jpe?g|webp|avif|gif|webm|mp3|mp4|m4a|ogg|opus|flac|woff2|ktx2)$/i;
@@ -143,6 +145,16 @@ export const createApi = (film, { page, events }) => {
   app.post("/api/choose", zValidator("json", Choose), (c) => (film.choose(c.req.valid("json")) ? c.text("ok") : c.body(null, 400)));
   app.get("/api/contract.json", (c) => fresh(c, film.contract()));
   app.post("/api/contract", zValidator("json", PageProblems), (c) => { film.pageSays(c.req.valid("json").problems); return c.text("ok"); });
+
+  let weighed = null; // the heavy files last named, so each reload doesn't say it again
+  app.post("/api/weight", zValidator("json", PageWeight), (c) => {
+    const heavy = weighFirstVisit(c.req.valid("json").files);
+    if ((heavy?.names ?? null) !== weighed) {
+      console.log(heavy ? heavy.text : "a first visit from a phone or over Tailscale is back under budget");
+      weighed = heavy?.names ?? null;
+    }
+    return c.text("ok");
+  });
 
   app.get("/api/versions.json", (c) => fresh(c, film.versions.list()));
   app.post("/api/seen", zValidator("json", Seen), (c) => { film.versions.seen(c.req.valid("json").id); return c.text("ok"); });
