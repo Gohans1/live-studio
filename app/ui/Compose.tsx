@@ -1,6 +1,6 @@
 // The note being written. Every keystroke is kept on the device (engine/notes.ts setDraft), so a reload never loses it.
 // On an upright phone it sits right under the picture, so the keyboard can't cover it and a tap still lands on the picture
-import TriangleAlert from "lucide-react/icons/triangle-alert";
+import { TriangleAlert } from "lucide-react";
 import { useLayoutEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";

@@ -3,9 +3,7 @@
 import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "cn"
-import ChevronDownIcon from "lucide-react/icons/chevron-down"
-import CheckIcon from "lucide-react/icons/check"
-import ChevronUpIcon from "lucide-react/icons/chevron-up"
+import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
 const Select = SelectPrimitive.Root
 

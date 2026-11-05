@@ -1,7 +1,7 @@
 // The side list: notes still to fix, the history of fixed ones, and what changed since the last watched version. The list
 // keeps the item at the playhead in view, unless a finger or wheel moved it in the last few seconds or a note is being edited
 import { cn } from "cn";
-import X from "lucide-react/icons/x";
+import { X } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

@@ -1,6 +1,6 @@
 // Settings take the notes' place in the side column, so the film and the timeline never move. Heavy or slow options sit in
 // their own warned section; every option whose name doesn't explain itself has a "?"
-import X from "lucide-react/icons/x";
+import { X } from "lucide-react";
 import { type ReactNode, useLayoutEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";

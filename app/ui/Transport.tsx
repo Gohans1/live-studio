@@ -1,10 +1,5 @@
 // The two buttons that matter, then the sound and the settings
-import Ellipsis from "lucide-react/icons/ellipsis";
-import Pause from "lucide-react/icons/pause";
-import Pencil from "lucide-react/icons/pencil";
-import Play from "lucide-react/icons/play";
-import Volume2 from "lucide-react/icons/volume-2";
-import VolumeX from "lucide-react/icons/volume-x";
+import { Ellipsis, Pause, Pencil, Play, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { openNote } from "../engine/notes";
