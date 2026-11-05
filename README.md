@@ -8,11 +8,11 @@ The creator only watches, taps and talks. Nothing in the studio can edit the fil
 
 ## Run the demo
 
-Needs Node 20+ and Python 3 (for the small helper scripts). ffmpeg is needed for audio on anything but the machine running it.
+Needs Node 22+, [Bun](https://bun.sh) and Python 3 (for the small helper scripts). ffmpeg is needed for audio on anything but the machine running it.
 
 ```bash
-npm install
-npm run demo -- 4321
+bun install
+bun run demo -- 4321
 ```
 
 Open http://localhost:4321. The interface text is in Vietnamese for now: **Phát** is play, **Ghi chú** is note.
@@ -52,16 +52,16 @@ There is one studio: this repo. A film never holds a copy, so a fix made here re
 
 ```bash
 git clone https://github.com/Gohans1/live-studio ../live-studio   # beside the film
-npm install --prefix ../live-studio
+bun install --cwd ../live-studio
 node ../live-studio/init.mjs .          # connect this project, --dry to only see what it would do
 node src/live.mjs 4321
 ```
 
 `init.mjs` adds a `file:` dependency, so `node_modules/live-studio` is a link to this repo, and writes three small files into the film: `src/live.mjs` and `notes_report.py` open the studio on this film, and `src/edit.ts` hands `edit.json` to it. It refuses if a file about to be removed holds changes this repo never had, so they can be moved here first. Any part a project doesn't have yet is copied from the demo, to replace.
 
-The film owns everything else: `src/scene.ts`, `src/edit.json`, `src/timing.ts`, `voice_map.py`, `voice_edit.py`, `sound.py`, `make_lite.py`, `assets/`. The `demo/` folder is the example of all of them. The studio finds them through two names when it bundles: `film/...` is the film's `src/`, `live-studio/edit` is `src/edit.ts` here.
+The film owns everything else: `src/scene.ts`, `src/edit.json`, `src/timing.ts`, `voice_map.py`, `voice_edit.py`, `sound.py`, `make_lite.py`, `assets/`. The `demo/` folder is the example of all of them. The studio's Vite server finds them through two names: `film/...` is the film's `src/`, `live-studio/edit` is `src/edit.ts` here.
 
-Every film runs the same studio, so a change here affects them all. Saving a page file reloads the open pages; a change to `src/live.mjs` or `src/versions.mjs` needs each studio restarted.
+Every film runs the same studio, so a change here affects them all. The page is a React app in `app/` (shadcn/ui on Base UI, Tailwind, Zustand) served by Vite, so saving a file there updates open pages in place; saving the film's own code reloads them at the same second. A change to the server, anything in `src/`, needs each studio restarted.
 
 Replace `src/scene.ts`. It exports `SHOTS`, `SHOTS_OUT`, `DURATION`, `applyEdit` and `buildScene(canvas, W, H, draft)`, which returns `draw(t)` with `draw.tools` attached. The demo scene shows the whole contract in about 80 lines, and `draw(t)` must be able to draw any moment straight away.
 
@@ -79,4 +79,4 @@ All timing lives in `src/edit.json`, in the voice's original seconds, so that ac
 
 ## License
 
-MIT. The demo uses [three.js](https://threejs.org) and [esbuild](https://esbuild.github.io), both MIT.
+MIT. Built on [three.js](https://threejs.org), [Vite](https://vite.dev), [React](https://react.dev), [shadcn/ui](https://ui.shadcn.com), [Base UI](https://base-ui.com), [Tailwind CSS](https://tailwindcss.com), [Hono](https://hono.dev), [Zustand](https://zustand.docs.pmnd.rs), [TanStack Hotkeys](https://tanstack.com/hotkeys), [Zod](https://zod.dev) and [Lucide](https://lucide.dev), all MIT except Lucide (ISC).

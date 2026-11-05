@@ -67,12 +67,12 @@ if (existsSync(inProject(OLD_MANIFEST))) { say("removed", OLD_MANIFEST); if (!dr
 for (const [f, text] of Object.entries(POINTERS)) { say("pointer", f); write(f, text); }
 
 const pkgFile = inProject("package.json");
-const pkg = existsSync(pkgFile) ? JSON.parse(readFileSync(pkgFile, "utf8")) : { private: true, type: "module", dependencies: { esbuild: "0.28.1", three: "0.186.1" } };
+const pkg = existsSync(pkgFile) ? JSON.parse(readFileSync(pkgFile, "utf8")) : { private: true, type: "module", dependencies: { three: "0.187.0" } };
 pkg.dependencies = { ...pkg.dependencies, "live-studio": `file:${relative(PROJECT, HERE).replace(/\\/g, "/")}` };
 say("linked", `live-studio -> ${pkg.dependencies["live-studio"]}`);
 write("package.json", JSON.stringify(pkg, null, 2) + "\n");
 if (!dry && !existsSync(inProject("node_modules/live-studio"))) {
-  const r = spawnSync("npm install --no-audit --no-fund", { cwd: PROJECT, stdio: "inherit", shell: true });
+  const r = spawnSync("bun install", { cwd: PROJECT, stdio: "inherit", shell: true });
   if (r.status) process.exit(r.status);
 }
 console.log(dry ? "nothing changed" : "done: node src/live.mjs");

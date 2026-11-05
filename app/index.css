@@ -1,0 +1,142 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@import "./studio.css";
+
+@custom-variant dark (&:is(.dark *));
+/* A phone held upright: picture on top, notes under it. A phone on its side: picture beside a narrow notes column */
+@custom-variant upright (@media (max-width: 820px) and (min-height: 521px), (max-width: 559px));
+@custom-variant sideways (@media (max-height: 520px) and (min-width: 560px));
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --color-raised-2: var(--raised-2);
+    --color-raised-3: var(--raised-3);
+    --color-accent-hover: var(--accent-hover);
+    --color-tint: var(--tint);
+    --color-tint-hover: var(--tint-hover);
+    --color-ok: var(--ok);
+    --color-warn: var(--warn);
+    --color-warn-bg: var(--warn-bg);
+    --color-picture: var(--picture);
+    --color-alarm: var(--alarm);
+    --color-alarm-bg: var(--alarm-bg);
+    --color-raised-4: var(--raised-4);
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Flexoki dark, the studio's palette since before shadcn. One theme: the studio is only ever used dark, next to a moving picture */
+:root {
+    --background: #100F0F;
+    --foreground: #CECDC3;
+    --card: #1C1B1A;
+    --card-foreground: #CECDC3;
+    --popover: #282726;
+    --popover-foreground: #CECDC3;
+    --primary: #3AA99F;
+    --primary-foreground: #100F0F;
+    --secondary: #282726;
+    --secondary-foreground: #CECDC3;
+    --muted: #1C1B1A;
+    --muted-foreground: #878580;
+    --accent: #343331;
+    --accent-foreground: #CECDC3;
+    --destructive: #D14D41;
+    --border: #343331;
+    --input: #343331;
+    --ring: #3AA99F;
+    --chart-1: #3AA99F;
+    --chart-2: #D0A215;
+    --chart-3: #879A39;
+    --chart-4: #4385BE;
+    --chart-5: #CE5D97;
+    --radius: 0.5rem;
+    --sidebar: #1C1B1A;
+    --sidebar-foreground: #CECDC3;
+    --sidebar-primary: #3AA99F;
+    --sidebar-primary-foreground: #100F0F;
+    --sidebar-accent: #282726;
+    --sidebar-accent-foreground: #CECDC3;
+    --sidebar-border: #343331;
+    --sidebar-ring: #3AA99F;
+    /* The studio's own, beyond shadcn's set */
+    --raised-2: #282726;
+    --raised-3: #343331;
+    --accent-hover: #4DBAB0;
+    --tint: #1C2C2A;
+    --tint-hover: #243B38;
+    --ok: #879A39;
+    --warn: #D0A215;
+    --warn-bg: #2A2410;
+    --picture: #FFFCF0;
+    --alarm: #AF3029;
+    --alarm-bg: #2E1513;
+    --raised-4: #403E3C;
+    color-scheme: dark;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground;
+    }
+  html {
+    @apply font-sans;
+    }
+  ::selection {
+    @apply bg-primary/40 text-foreground;
+    }
+  /* Touch: everything sized in rem grows to a fingertip; the compact desktop density stays for the mouse */
+  html {
+    @media (pointer: coarse) {
+      font-size: 18px;
+    }
+  }
+  :root {
+    caret-color: var(--primary);
+    scrollbar-color: var(--raised-3) transparent;
+    -webkit-tap-highlight-color: transparent;
+    }
+}

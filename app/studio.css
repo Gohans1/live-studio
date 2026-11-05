@@ -1,0 +1,35 @@
+/* The layers over the picture, drawn by the engine (app/engine/player.ts) straight into these elements every frame. They sit on
+   a moving film, so each carries its own dark backing, and none takes a click meant for the picture */
+@layer components {
+  .stage-clock {
+    position: absolute; top: 10px; right: 10px; z-index: 3; pointer-events: none;
+    padding: 2px 10px; border-radius: 6px; background: rgb(0 0 0 / 0.6); color: var(--picture);
+    font: 600 24px/1.25 var(--font-mono); font-variant-numeric: tabular-nums;
+  }
+  .stage-review {
+    flex: 1 1 0; min-height: 0; display: flex; flex-flow: column wrap; align-content: flex-start; align-items: flex-start; gap: 3px;
+    font: clamp(9px, 1.9cqh, 12px)/1.35 var(--font-mono); color: var(--foreground);
+  }
+  .stage-review.narrow { flex-wrap: nowrap; width: var(--room); overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; touch-action: pan-y; }
+  .stage-review.narrow section { flex: none; width: 100%; }
+  .stage-review section { width: 36ch; background: rgb(0 0 0 / 0.62); border-radius: 6px; padding: 3px 8px 4px; }
+  .stage-review h4 { margin: 0; font: 700 0.9em/1.5 var(--font-sans); letter-spacing: 0.06em; color: var(--primary); }
+  .stage-review p { margin: 0; overflow-wrap: anywhere; }
+  .stage-review p.new { color: var(--picture); }
+  .stage-review p b { font: 700 0.8em/1.4 var(--font-sans); color: var(--primary-foreground); background: var(--warn); border-radius: 3px; padding: 0 3px; margin-right: 5px; vertical-align: 1px; }
+  .stage-caption { position: absolute; inset-inline: 0; bottom: 12px; padding: 0 12px; text-align: center; pointer-events: none; z-index: 2; }
+  .stage-caption:not(:empty) { text-wrap: balance; }
+  .stage-caption-text:empty { display: none; }
+  .stage-caption-text { background: rgb(0 0 0 / 0.62); padding: 3px 10px; border-radius: 6px; color: var(--picture); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .pin { position: absolute; width: 18px; height: 18px; margin: -11px 0 0 -11px; border: 2px solid var(--primary); border-radius: 50%; box-shadow: 0 0 0 1px #000; }
+  .pin.saved { border-color: #4385BE; width: 12px; height: 12px; margin: -8px 0 0 -8px; }
+  .pin i { position: absolute; left: 24px; top: -3px; background: rgb(0 0 0 / 0.8); color: var(--foreground); padding: 1px 6px; font-style: normal; white-space: nowrap; border-radius: 4px; font-size: 12px; }
+
+  /* A phone held upright: a short picture, so one column of the list that a finger scrolls */
+  @media (max-width: 820px) and (min-height: 521px), (max-width: 559px), (max-height: 520px) and (min-width: 560px) {
+    .stage-clock { font-size: 16px; top: 6px; right: 6px; padding: 1px 6px; }
+    .stage-review { gap: 2px; flex-wrap: nowrap; width: 52%; overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; touch-action: pan-y; }
+    .stage-review section { flex: none; width: 100%; padding: 2px 6px 3px; }
+    .stage-caption { bottom: 6px; font-size: 13px; }
+  }
+}

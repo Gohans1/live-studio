@@ -166,20 +166,20 @@ describe("the server", () => {
     for (const path of ["/../package.json", "/..%2f..%2f..%2fpackage.json", "/..%5c..%5c..%5cpackage.json", "/lite/..%2f..%2f..%2f..%2fpackage.json"]) assert.equal(await status(path), 404, path);
   });
   test("refuses other sites", async () => {
-    assert.equal(await status("/notes.json", { headers: { host: "evil.example.com" } }), 403);
-    assert.equal(await status("/seen", { method: "POST", headers: { origin: "https://evil.example.com" }, body: "{}" }), 403);
-    const res = await ask("/notes.json");
+    assert.equal(await status("/api/notes", { headers: { host: "evil.example.com" } }), 403);
+    assert.equal(await status("/api/seen", { method: "POST", headers: { origin: "https://evil.example.com" }, body: "{}" }), 403);
+    const res = await ask("/api/notes");
     assert.equal(res.headers["cross-origin-resource-policy"], "same-origin");
     assert.match(res.headers["content-security-policy"], /frame-ancestors 'self'/);
   });
   test("answers bad requests and stays up", async () => {
     assert.equal(await status("/%"), 400);
-    assert.equal(await status("/choose", { method: "POST", body: "not json" }), 400);
-    assert.equal(await status("/mix.wav", { headers: { range: "bytes=999999999999-" } }), 416);
-    assert.equal(await status("/notes.json"), 200);
+    assert.equal(await status("/api/choose", { method: "POST", body: "not json" }), 400);
+    assert.equal(await status("/api/mix.wav", { headers: { range: "bytes=999999999999-" } }), 416);
+    assert.equal(await status("/api/notes"), 200);
   });
   test("refuses a note that isn't whole, or a picture that isn't one", async () => {
-    const send = (note, img) => status("/notes", { method: "POST", body: JSON.stringify({ note, img }) });
+    const send = (note, img) => status("/api/notes", { method: "POST", body: JSON.stringify({ note, img }) });
     assert.equal(await send({ id: "testbad" }), 400);
     assert.equal(await send({ id: ["testbad"], t: 1, text: "x" }), 400);
     assert.equal(await send({ id: "testbad", t: 1, text: "x" }, "data:text/html;base64,PGh0bWw+"), 400);

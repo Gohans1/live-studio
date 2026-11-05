@@ -13,7 +13,6 @@ const CUE_LENGTH = 0.5; // a mark needs some width to be seen and jumped to
 const hash = (data) => createHash("md5").update(data).digest("hex").slice(0, 12);
 const ENVELOPE_STEP = 0.05, SOUND_LIMIT = 0.001, SOUND_GAP = 0.5;
 const PACED_MARGIN = 0.3, PACED_LIMIT = 0.002, PACED_RUN = 2; // tuned on a real voice mix, see the comment in soundRanges
-const MAX_BODY = 20 * 1024 * 1024;
 const SOUND_FILE = /\.(wav|mp3|ogg|opus|flac|m4a|aac|webm)$/i;
 const TOP_NAMES = { beats: "hành động", camera: "camera", cuts: "điểm cắt", face: "mặt", voice: "giọng", zoomRate: "tốc độ zoom" };
 
@@ -192,7 +191,6 @@ export const stampAssets = async (dir) => {
   return Object.fromEntries(Object.entries(map).sort(([p], [q]) => (p < q ? -1 : 1)));
 };
 
-export const readJson = (req) => new Promise((ok, no) => { const parts = []; let size = 0; req.on("data", (d) => { size += d.length; if (size > MAX_BODY) { no(new Error("request too large")); req.destroy(); } else parts.push(d); }); req.on("end", () => { try { ok(JSON.parse(Buffer.concat(parts).toString("utf8"))); } catch (e) { no(e); } }); req.on("error", no); });
 
 // The film's own code, by content: saving a file unchanged is no new version. edit.json is a version's edit, not its code
 const hashCode = async (dir, skip) => {
@@ -300,28 +298,15 @@ export const createVersions = ({ project, send, mixFile, editFile, assetsDir, co
     return { a, b, atA: A.at, atB: B.at, edits, code: A.code !== B.code, sound: mergeRanges([...mixRanges(A, B, warpA, warpB), ...cueRanges(editA, editB, warpB)]), assets: assetChanges(A, B) };
   };
 
-  const json = (res, data) => { res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store"); res.end(JSON.stringify(data)); };
-  const route = async (req, res, url) => {
-    if (url === "/versions.json") {
-      json(res, { current: current(), before: beforeId(), seen: index.seen, versions: index.versions.map((v) => ({ id: v.id, at: v.at })) });
-      return true;
-    }
-    if (req.method === "POST" && url === "/seen") {
-      const { id } = await readJson(req);
-      if (find(id) && id === current() && index.seen !== id) {
-        if (index.seen) index.base = index.seen;
-        index.seen = id;
-        saveIndex();
-      }
-      res.end("ok");
-      return true;
-    }
-    const pair = /^\/compare\/([0-9a-f]+)\/([0-9a-f]+)$/.exec(url);
-    if (!pair) return false;
-    if (!find(pair[1]) || !find(pair[2])) { res.statusCode = 404; res.end(); return true; }
-    json(res, compareResult(pair[1], pair[2]));
-    return true;
+  const list = () => ({ current: current(), before: beforeId(), seen: index.seen, versions: index.versions.map((v) => ({ id: v.id, at: v.at })) });
+  // The page says when the current version has really been watched
+  const seen = (id) => {
+    if (!find(id) || id !== current() || index.seen === id) return;
+    if (index.seen) index.base = index.seen;
+    index.seen = id;
+    saveIndex();
   };
+  const compare = (a, b) => (find(a) && find(b) ? compareResult(a, b) : null);
 
-  return { route, changed, current };
+  return { list, seen, compare, changed, current };
 };
