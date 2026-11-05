@@ -4,6 +4,7 @@ python notes_report.py                 index of open notes by shot: one line eac
 python notes_report.py ID [ID ...]     everything about those notes: the tap, words, actions, version, pictures to open
 python notes_report.py --shot 3        everything about one shot's notes
 Add --done to include fixed notes, --cam to include the camera line (for changing a shot's framing).
+Fixed one: node node_modules/live-studio/note.mjs done ID "what you changed" (docs/film-contract.md, "Notes").
 
 Read the index first, then open the notes you're about to fix, in the order of the film. Open the pictures named there:
 "seconds around" first, it's the cheapest way to see the moment; the words alone don't say what was being looked at.

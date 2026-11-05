@@ -1,4 +1,4 @@
-// The side list: notes still to fix, the history of fixed ones, and what changed since the last watched version. The list
+// The side list: notes still to fix with the fixed ones folded away under them, and what changed since the last watched version. The list
 // keeps the item at the playhead in view, unless a finger or wheel moved it in the last few seconds or a note is being edited
 import { cn } from "cn";
 import { X } from "lucide-react";
@@ -46,8 +46,8 @@ function NoteCard({ note: n, near, editing }: { note: Note; near: boolean; editi
   );
 }
 
-// History keeps what was asked, what the frame looked like and what was done. It's a record: the way back is "Chưa ưng"
-function HistoryCard({ note: n }: { note: Note }) {
+// A fixed note keeps what was asked, what the frame looked like and what was done. It's a record: the way back is "Chưa ưng"
+function DoneCard({ note: n }: { note: Note }) {
   return (
     <article className={card}>
       <div className="flex min-h-9 items-center gap-2 pointer-coarse:min-h-11">
@@ -131,7 +131,6 @@ export function NoteList() {
         {/* A narrow column wraps the save status under the tabs, then lets the tabs scroll rather than push past the screen */}
         <TabsList variant="line" className="h-8 max-w-full min-w-0 overflow-x-auto overscroll-x-contain pointer-coarse:h-10 sideways:h-9">
           <TabsTrigger value="open" className={trigger}>Cần sửa ({open.length})</TabsTrigger>
-          <TabsTrigger value="history" className={trigger}>Lịch sử ({old.length})</TabsTrigger>
           {showDiff && <TabsTrigger value="diff" className={trigger}>Thay đổi ({changes.length})</TabsTrigger>}
         </TabsList>
         <span role="status" className={cn("flex-1 text-end text-xs whitespace-nowrap text-ok", saved === "busy" && "text-muted-foreground", saved === "fail" && "font-semibold whitespace-normal text-warn")}>{savedText}</span>
@@ -145,8 +144,17 @@ export function NoteList() {
         onWheel={() => { touched.current = performance.now(); }}
         onTouchMove={() => { touched.current = performance.now(); }}
       >
-        {tab === "open" && (open.length ? open.map((n) => <NoteCard key={n.id} note={n} near={n.id === nearNote} editing={n.id === editing} />) : <Empty>Chưa có ghi chú</Empty>)}
-        {tab === "history" && (old.length ? old.map((n) => <HistoryCard key={n.id} note={n} />) : <Empty>Ghi chú sửa xong sẽ nằm ở đây, kèm việc đã làm</Empty>)}
+        {tab === "open" && (open.length ? open.map((n) => <NoteCard key={n.id} note={n} near={n.id === nearNote} editing={n.id === editing} />) : <Empty>{old.length ? "Hết việc cần sửa" : "Chưa có ghi chú"}</Empty>)}
+        {/* Folded by default: they are answered, and the list is for what still needs doing */}
+        {tab === "open" && old.length > 0 && (
+          <details className="group mt-2 flex-none">
+            <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-[10px] px-2.5 text-[13px] font-semibold text-muted-foreground hover:bg-card hover:text-foreground [&::-webkit-details-marker]:hidden">
+              <span aria-hidden className="mx-0.5 size-1.5 -rotate-45 border-r-[1.5px] border-b-[1.5px] border-current group-open:rotate-45" />
+              Đã xong ({old.length})
+            </summary>
+            <div className="mt-1.5 flex flex-col gap-1.5">{old.map((n) => <DoneCard key={n.id} note={n} />)}</div>
+          </details>
+        )}
         {tab === "diff" && (changes.length ? changes.map((c, i) => <ChangeCard key={`${c.title}${c.from}${i}`} change={c} near={i === nearChange} />) : <Empty>{emptyWords()}</Empty>)}
       </div>
     </Tabs>

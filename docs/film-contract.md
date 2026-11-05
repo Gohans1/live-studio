@@ -107,6 +107,16 @@ Give each option one recording of that stretch, at the level it would have in th
 
 Written by the studio only, at the film's root (`sound_choices.json` in films that started with that name). It holds the picks for both looks and sounds, keyed by variant id or sound group: `{ "computer": { "set": "computer_beige", "gain": 1 } }`.
 
+## Notes: closing them
+
+The creator's notes land in `notes/notes.jsonl` while the studio runs.
+
+1. Read before acting: `python notes_report.py` for the index, `python notes_report.py ID` for one note with its pictures.
+2. Fix it and check it the way that note asks (look at the frame, listen, run the tests).
+3. Close it: `node node_modules/live-studio/note.mjs done ID "what you changed"`, in Vietnamese and plain words, because the creator reads them under the note. The note folds away under **Đã xong** at the bottom of **Cần sửa**. A note you could not fix stays open: say why in your reply instead.
+
+`done` goes through the running studio, which owns `notes.jsonl` while it runs (it records its port in `renders/live/studio.json`), and writes the file itself only when no studio runs. Never edit `notes.jsonl` by hand. **Chưa ưng** on a fixed note opens it again.
+
 ## Load weight
 
 A page opened from a phone or over Tailscale tells the studio, once it is ready, what it downloaded (`POST /api/weight`), at each file's size on the wire. Over 10 MB, about 4 s on a phone, the terminal names the biggest files. This PC loads the full files and is not judged. The studio already compresses whatever shrinks; the rest is the film's to slim:

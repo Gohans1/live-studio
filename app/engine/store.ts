@@ -18,7 +18,7 @@ export interface Change { from: number | null; to: number | null; kind: "edit" |
 export interface OptionView { id: string; title: string; source?: string }
 export interface GroupView { name: string; title: string; picture: boolean; options: OptionView[]; chosen: string; pick: string; gain: number; ranges: [number, number][] }
 export interface ChipView { name: string; range: [number, number] }
-export type Tab = "open" | "history" | "diff";
+export type Tab = "open" | "diff";
 
 export interface StudioState {
   ready: boolean;

@@ -24,7 +24,7 @@ The server listens on this machine only and has no password. To use a phone, put
 - Press the note button, or tap the picture to pin the exact thing you mean. Type or dictate.
 - Tap an old note to edit it in the same box, with a warning before it overwrites. Tap its time to jump there.
 - The list follows the film, keeping the note nearest the playhead in view.
-- Fixed notes move to the History tab with what was done. One press sends them back.
+- Fixed notes fold away under **Đã xong** at the bottom of the list, with what was done. **Chưa ưng** sends one back.
 
 Words aren't lost: every keystroke is kept on the device, unsent notes wait and retry when the signal drops, the file is written atomically, × moves a note to `notes/deleted.jsonl` with an undo, and copies pile up in `renders/notes_backup`.
 
@@ -45,6 +45,14 @@ python notes_report.py             # index by shot, one line per note
 python notes_report.py ID ID       # everything about those notes, and the pictures to open
 python notes_report.py --shot 3    # everything about one shot's notes
 ```
+
+When a note is fixed, the agent closes it, and it folds away under **Đã xong** with these words:
+
+```bash
+node node_modules/live-studio/note.mjs done ID "what changed"
+```
+
+The steps an agent follows are in [docs/film-contract.md](docs/film-contract.md#notes-closing-them).
 
 ## Use it on your own film
 

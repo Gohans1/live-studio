@@ -1,8 +1,10 @@
 // The studio for one film: node src/live.mjs [port] [--lan] inside the film (its src/live.mjs sets LIVE_PROJECT), then open
 // http://localhost:4321. Saving the film's code reloads the picture at the same second once nobody is mid-note; saving sound.py
 // or an audio file remixes.
+import { writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
+import { join } from "node:path";
 import { getRequestListener } from "@hono/node-server";
 import { createApi } from "./api.mjs";
 import { openFilm } from "./film.mjs";
@@ -49,5 +51,6 @@ film.start();
 // This machine only, unless asked: --lan opens it to the network for a phone, and nothing here asks for a password
 http.listen(PORT, LAN ? "0.0.0.0" : "127.0.0.1", () => {
   console.log(`live at http://localhost:${PORT}`);
+  writeFileSync(join(film.WORK, "studio.json"), JSON.stringify({ port: PORT })); // where note.mjs done finds the studio that owns the notes
   if (LAN) for (const nets of Object.values(networkInterfaces())) for (const n of nets) if (n.family === "IPv4" && !n.internal) console.log(`no password: anyone on this network can open http://${n.address}:${PORT} and change the notes. tailscale serve is the safe way to a phone`);
 });
