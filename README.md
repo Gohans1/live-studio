@@ -28,18 +28,11 @@ The server listens on this machine only and has no password. To use a phone, put
 
 Words aren't lost: every keystroke is kept on the device, unsent notes wait and retry when the signal drops, the file is written atomically, × moves a note to `notes/deleted.jsonl` with an undo, and copies pile up in `renders/notes_backup`.
 
-## Before and after
+## What changed
 
-Every change to the film is kept as a version in `renders/versions`, 30 at most. Press **So sánh** (B) to draw an older version beside the current one, frame for frame.
+Every change to the film is kept as a version in `renders/versions`, 30 at most, and cheaply: `edit.json`, how loud the mix was over time, and fingerprints of the film's code and assets. The tab **Thay đổi** (B) lists what changed since the version you last watched, in words with times: edits from `edit.json`, where the sound changed, and whether code or asset files changed. Using the page counts as watching, opening it doesn't; the list over the timeline picks any other version. Marks on the timeline show each change, and Z and X jump between them.
 
-- "Before" is the version you last watched: using the page counts as watching, opening it doesn't. The list next to the bar picks any other.
-- Pink marks on the timeline are where the picture changed, yellow where the sound did. Z and X jump between them, and boxes show the place in the frame. A change over more than half the frame gets no box, since it's the camera or the light.
-- **Bật qua lại** (V) flips between the two. On a small screen only one fits, so it's before or after.
-- The tab **Thay đổi** lists each change in words, from `edit.json`.
-
-Both versions are drawn at the same second of the voice, so re-pacing the voice marks only what really moved against it, not everything after it. The picture check runs in a headless Chrome (`tools/chrome-headless-shell`, `LIVE_CHROME`, or the system's) only while comparing is on and the film hasn't changed for 8 seconds, samples every 5th frame, saves as it goes, and carries on after a restart.
-
-An old version shows today's asset files, so changed models or textures are listed with a warning rather than compared. Its sound isn't kept, only how loud it was over time: yellow marks say where the sound changed, but **Bật qua lại** flips the picture only. When the voice was re-paced, a short sound under loud speech can go unmarked, though any sound moved in `edit.json` still shows.
+No old version is drawn. To weigh looks or sounds against each other, a film offers them as options (see below), which shows the difference at once and costs nothing.
 
 ## What the agent gets
 

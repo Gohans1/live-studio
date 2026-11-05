@@ -63,23 +63,9 @@ button.on{background:var(--tint);color:var(--accent)}
 #load{position:absolute;top:50px;left:12px;z-index:2;background:rgba(0,0,0,.6);padding:2px 8px;border-radius:6px}#load:empty{display:none}
 #err{display:none;position:absolute;inset:12px;overflow:auto;background:#2E1513;color:var(--text);padding:12px;border-radius:8px;white-space:pre-wrap;z-index:5}
 
-/* Before and after */
-#view.cmp{gap:2px}
-#beforeStage{position:relative;background:#000;display:none;flex:none}#view.cmp.showBefore #beforeStage{display:block}#view.cmp:not(.showAfter) #stage{display:none}
-#beforeFrame{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}
-#clockB{position:absolute;top:10px;right:10px;font:600 24px/1.25 var(--num);font-variant-numeric:tabular-nums;color:var(--picture);background:rgba(0,0,0,.6);padding:2px 10px;border-radius:6px;pointer-events:none;z-index:2}
-.cmpTag,#badges b#bAfter{background:#CE5D97;color:#100F0F;padding:2px 8px;border-radius:6px;font-weight:700;font-size:12px}
-.cmpTag{position:absolute;top:10px;left:10px;z-index:2}
-#beforeLoad{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-2);padding:12px;text-align:center;z-index:1}#beforeLoad:empty{display:none}
-.cmpBoxes{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
-.cmpBoxes i{position:absolute;border:2px solid #CE5D97;border-radius:3px;box-shadow:0 0 0 1px rgba(0,0,0,.7)}
-.cmpWhole{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#E47DA8;padding:2px 10px;border-radius:6px;font-size:12px;white-space:nowrap}
-#cmpB{height:48px;display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600;border-radius:10px;background:var(--raised-3);position:relative}#cmpB[hidden],#cmpBar[hidden]{display:none}
-#cmpB.on{background:#CE5D97;color:#100F0F}
-#cmpB em{font-style:normal;font-size:12px;background:#CE5D97;color:#100F0F;border-radius:9px;padding:0 6px}#cmpB.on em{background:#100F0F;color:#E47DA8}
-#row{flex-wrap:wrap}
-#cmpBar{flex:1 0 100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-#cmpBar button,#cmpWhich{min-height:40px}#cmpWhich{max-width:240px}#cmpStatus{flex:1;min-width:120px;color:var(--text-2);font-size:12px;font-variant-numeric:tabular-nums}
+/* What changed since the version last watched: the bar over the timeline while that tab is open */
+#cmpBar{flex:none;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:0 var(--gap) 8px}#cmpWhich{flex:1 1 100%;min-width:0;order:-1}
+#cmpBar[hidden]{display:none}#cmpBar button,#cmpWhich{min-height:40px}#cmpStatus{flex-basis:100%;color:var(--text-2);font-size:12px;font-variant-numeric:tabular-nums}
 #cmpKey{color:var(--text-2);font-size:12px;white-space:nowrap}#cmpKey i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 8px;vertical-align:-1px}
 .note.change{cursor:pointer}.note.change small{display:block;color:var(--text-2);font-size:12px;overflow-wrap:anywhere}
 .kind{font-size:12px;font-weight:600}.kind.picture{color:#E47DA8}.kind.sound{color:var(--warn)}.kind.edit{color:var(--accent)}
@@ -202,7 +188,6 @@ kbd{font:600 11px/1.6 var(--num);color:#B7B5AC;background:var(--raised-2);border
 @media (max-width:1100px){
   #play{min-width:0;padding-inline:14px}#pNote{flex:1 1 auto}
   #volR{width:80px}
-  #cmpB{width:48px;padding:0;justify-content:center}#cmpB span{display:none}#cmpB em{position:absolute;top:-4px;right:-4px}
 }
 @media (max-width:900px){#volR{width:56px}}
 /* Phone held upright: nothing moves but the notes, which follow the film */
@@ -211,14 +196,13 @@ kbd{font:600 11px/1.6 var(--num);color:#B7B5AC;background:var(--raised-2);border
   #wrap{display:flex;flex-direction:column;height:100dvh}
   #view{flex:none;width:100%;aspect-ratio:16/9;max-height:62vh}
   #row,#ctl{flex:none}
-  #clock,#clockB{font-size:16px;top:6px;right:6px;padding:1px 6px}.cmpTag{top:6px;left:6px}
+  #clock{font-size:16px;top:6px;right:6px;padding:1px 6px}
   #tl{top:6px;left:6px;right:6px;bottom:30px;gap:4px}#badges{min-height:22px;margin-right:100px}#badges b{font-size:11px}
   /* Half the picture's width at most: the head and a Chốt that don't fit go to a second line rather than off the edge */
   #tryNow{top:32px;right:6px;bottom:6px;max-width:46%;gap:3px}.try{padding:3px 4px 4px}.try p{flex-wrap:wrap;column-gap:5px;font-size:11px;margin-bottom:3px}.try .cur{display:none}
   .try div{flex-wrap:wrap}#tryNow button{min-height:30px;min-width:30px;padding:0 6px;font-size:12px}
   /* Too short for the whole list: one column on the left half that a finger scrolls */
   #review{gap:2px;flex-wrap:nowrap;width:52%;overflow-y:auto;overscroll-behavior:contain;pointer-events:auto;touch-action:pan-y}#review section{flex:none;width:100%;padding:2px 6px 3px}
-  #cmpB{flex:0 0 44px;width:44px;padding:0;justify-content:center;margin:0}#cmpB span{display:none}#cmpB em{position:absolute;top:-4px;right:-4px}
   #row{row-gap:6px}
   #caption{bottom:6px;font-size:13px}
   #row{padding:8px var(--gap)}
@@ -237,12 +221,11 @@ kbd{font:600 11px/1.6 var(--num);color:#B7B5AC;background:var(--raised-2);border
   #play,#pNote,#moreB,#muteB{height:44px}
   #play{flex:none;min-width:0;padding-inline:14px}#pNote{flex:1;min-width:0;white-space:nowrap}#moreB,#muteB{flex:0 0 44px;width:44px}#vol{margin-left:0}#volR{display:none}
   #ctl{padding-bottom:6px}#over{margin:0}#detail{display:none}
-  #clock,#clockB{font-size:16px;top:6px;right:6px;padding:1px 6px}.cmpTag{top:6px;left:6px}
+  #clock{font-size:16px;top:6px;right:6px;padding:1px 6px}
   #tl{top:6px;left:6px;right:6px;bottom:30px;gap:4px}#badges{min-height:22px;margin-right:100px}
   #tryNow{top:32px;right:6px;bottom:6px}.try p{font-size:11px}
   /* Too short for the whole list: one column on the left half that a finger scrolls */
   #review{gap:2px;flex-wrap:nowrap;width:52%;overflow-y:auto;overscroll-behavior:contain;pointer-events:auto;touch-action:pan-y}#review section{flex:none;width:100%;padding:2px 6px 3px}
-  #cmpB{height:44px;flex:0 0 44px;width:44px;padding:0;justify-content:center}#cmpB span{display:none}#cmpB em{position:absolute;top:-4px;right:-4px}
   #caption{bottom:6px;font-size:13px}
   #compose{padding:8px var(--gap)}
   #where{margin-bottom:4px}
@@ -254,16 +237,16 @@ kbd{font:600 11px/1.6 var(--num);color:#B7B5AC;background:var(--raised-2);border
 </style>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.1v13.8a.6.6 0 0 0 .9.5l10.7-6.9a.6.6 0 0 0 0-1L8.9 4.6a.6.6 0 0 0-.9.5z"/></symbol><symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4.5" height="14" rx="1"/><rect x="13.5" y="5" width="4.5" height="14" rx="1"/></symbol><symbol id="i-note" viewBox="0 0 24 24"><path d="M16.9 3.6a2 2 0 0 1 2.8 0l.7.7a2 2 0 0 1 0 2.8L8.6 18.9a2 2 0 0 1-.9.5l-3.9 1a.6.6 0 0 1-.7-.7l1-3.9a2 2 0 0 1 .5-.9z"/></symbol><symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></symbol><symbol id="i-vol" viewBox="0 0 24 24"><path d="M4 9.5h3.2L12 5.4v13.2l-4.8-4.1H4z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol><symbol id="i-vol-x" viewBox="0 0 24 24"><path d="M4 9.5h3.2L12 5.4v13.2l-4.8-4.1H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol><symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol><symbol id="i-compare" viewBox="0 0 24 24"><rect x="3" y="5" width="8" height="14" rx="1.5"/><rect x="13" y="5" width="8" height="14" rx="1.5" opacity=".55"/></symbol><symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4l9 16H3zM12 10v4M12 17.2v.1"/></symbol></svg>
 <div id="wrap">
-  <div id="view"><div id="beforeStage"><iframe id="beforeFrame" title="Bản trước"></iframe><div class="cmpBoxes" id="boxesB"></div><div id="clockB">00:00.000</div><b class="cmpTag">TRƯỚC</b><div id="beforeLoad"></div></div><div id="stage"><canvas id="gl" width="960" height="540"></canvas><canvas id="final" width="1920" height="1080"></canvas>
-    <div class="cmpBoxes" id="boxesA"></div><div id="pins"></div><div id="clock">00:00.000</div><div id="tl"><div id="badges"><b id="bFree">CAMERA TỰ DO</b><b id="bFinal">CHẤT LƯỢNG FINAL</b><b id="bLoop">LẶP SHOT</b><b id="bAfter">SAU</b><span id="mix" role="status"></span></div><div id="review" hidden></div></div><div id="tryNow" hidden></div><div id="caption"></div><div id="load"></div></div><pre id="err"></pre></div>
-  <div id="row"><button id="play"><svg class="i"><use id="playIcon" href="#i-play"/></svg><span id="playText">Phát</span></button><button id="pNote"><svg class="i"><use href="#i-note"/></svg>Ghi chú</button><button id="cmpB" aria-label="So sánh" title="B: so với bản xem lần cuối" hidden><svg class="i"><use href="#i-compare"/></svg><span>So sánh</span></button><div id="vol"><button id="muteB" title="Tắt tiếng (M)" aria-label="Tắt tiếng" aria-pressed="false"><svg class="i"><use id="volIcon" href="#i-vol"/></svg></button><input id="volR" type="range" min="0" max="1" step="0.05" value="1" title="Âm lượng (phím ↑ ↓)" aria-label="Âm lượng"></div><button id="moreB" title="Cài đặt" aria-label="Cài đặt" aria-expanded="false" aria-controls="more"><svg class="i"><use href="#i-more"/></svg></button>
-    <div id="cmpBar" hidden><button id="cmpPrev" title="Z">‹ Chỗ đổi</button><button id="cmpNext" title="X">Chỗ đổi ›</button><button id="cmpFlip" title="V">Bật qua lại</button><select id="cmpWhich" title="So với bản nào" aria-label="So với bản nào"></select><span id="cmpKey"><i style="background:#CE5D97"></i>hình<i style="background:#D0A215"></i>tiếng</span><span id="cmpStatus" role="status"></span></div></div>
+  <div id="view"><div id="stage"><canvas id="gl" width="960" height="540"></canvas><canvas id="final" width="1920" height="1080"></canvas>
+    <div id="pins"></div><div id="clock">00:00.000</div><div id="tl"><div id="badges"><b id="bFree">CAMERA TỰ DO</b><b id="bFinal">CHẤT LƯỢNG FINAL</b><b id="bLoop">LẶP SHOT</b><span id="mix" role="status"></span></div><div id="review" hidden></div></div><div id="tryNow" hidden></div><div id="caption"></div><div id="load"></div></div><pre id="err"></pre></div>
+  <div id="row"><button id="play"><svg class="i"><use id="playIcon" href="#i-play"/></svg><span id="playText">Phát</span></button><button id="pNote"><svg class="i"><use href="#i-note"/></svg>Ghi chú</button><div id="vol"><button id="muteB" title="Tắt tiếng (M)" aria-label="Tắt tiếng" aria-pressed="false"><svg class="i"><use id="volIcon" href="#i-vol"/></svg></button><input id="volR" type="range" min="0" max="1" step="0.05" value="1" title="Âm lượng (phím ↑ ↓)" aria-label="Âm lượng"></div><button id="moreB" title="Cài đặt" aria-label="Cài đặt" aria-expanded="false" aria-controls="more"><svg class="i"><use href="#i-more"/></svg></button>
+    </div>
   <div id="ctl">
     <canvas id="over"></canvas><canvas id="detail"></canvas>
   </div>
   <aside id="side">
     <div id="compose"><div id="where"></div><div id="overwrite"><svg class="i line"><use href="#i-warn"/></svg><span>Đang sửa ghi chú cũ: bấm Xong là chữ mới ghi đè chữ cũ</span></div><textarea id="text" name="note" placeholder="Gõ hoặc nói…" aria-label="Nội dung ghi chú" enterkeyhint="done" autocomplete="off"></textarea><div id="noteBtns"><button id="noteSave">Xong</button><button id="noteCancel">Hủy</button></div><small>Tự giữ từng chữ, tải lại trang không mất | Enter xong rồi xem tiếp | Shift+Enter xuống dòng | Esc hủy</small></div>
-    <div id="listhead"><button id="tabOpen" class="tab"></button><button id="tabHist" class="tab"></button><button id="tabDiff" class="tab" hidden></button><span id="saved" role="status"></span></div>
+    <div id="listhead"><button id="tabOpen" class="tab"></button><button id="tabHist" class="tab"></button><button id="tabDiff" class="tab" hidden></button><span id="saved" role="status"></span></div><div id="cmpBar" hidden><button id="cmpPrev" title="Z">‹ Chỗ đổi</button><button id="cmpNext" title="X">Chỗ đổi ›</button><select id="cmpWhich" title="So với bản nào" aria-label="So với bản nào"></select><span id="cmpKey"><i style="background:#CE5D97"></i>sửa<i style="background:#D0A215"></i>tiếng</span><span id="cmpStatus" role="status"></span></div>
     <div id="list"></div>
     <div id="more" role="region" aria-labelledby="moreTitle">
       <div id="moreHead"><h2 id="moreTitle">Cài đặt</h2><button id="moreClose" aria-label="Đóng cài đặt" title="Esc"><svg class="i line"><use href="#i-x"/></svg></button></div>
@@ -297,7 +280,7 @@ kbd{font:600 11px/1.6 var(--num);color:#B7B5AC;background:var(--raised-2);border
           <dt><kbd>L</kbd></dt><dd>lặp shot</dd>
           <dt><kbd>I</kbd></dt><dd>danh sách kỹ thuật ở góc trái</dd>
           <dt>Lăn chuột</dt><dd>trên timeline: phóng to</dd>
-          <dt><kbd>B</kbd> <kbd>V</kbd></dt><dd>so sánh bản trước; bật qua lại</dd>
+          <dt><kbd>B</kbd></dt><dd>những gì đổi từ bản xem lần cuối</dd>
           <dt><kbd>Z</kbd><kbd>X</kbd></dt><dd>chỗ đổi trước, sau</dd>
           <dt><kbd>F</kbd></dt><dd>camera tự do: kéo lia, lăn tiến lùi, chuột phải dời, Shift+kéo xoay quanh, <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>Q</kbd><kbd>E</kbd> đi, <kbd>-</kbd><kbd>=</kbd> ống kính</dd>
           <dt><kbd>K</kbd> <kbd>G</kbd></dt><dd>chép góc máy; xem final</dd>

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { request } from "node:http";
 import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { cueRanges, describeEdit, envelopeOf, parseRows, pickBefore, soundRanges, stampAssets, trimVersions } from "../src/versions.mjs";
+import { cueRanges, describeEdit, envelopeOf, pickBefore, soundRanges, stampAssets, trimVersions } from "../src/versions.mjs";
 
 const RATE = 8000;
 // Speech-like: bursts of noise with pauses, the same every run
@@ -111,13 +111,6 @@ test("trimming to 30 versions keeps what before points at and the current one", 
   const kept = trimVersions(versions, new Set(["v0", "v2"])).map((v) => v.id);
   assert.equal(kept.length, 30);
   for (const id of ["v0", "v2", "v34"]) assert.ok(kept.includes(id), id);
-});
-
-test("a scan's saved results survive a line cut off when it was stopped", () => {
-  const { rows, total, done } = parseRows('{"total":9}\n{"f":0}\n{"f":5,"n":2}\n{"f":1');
-  assert.deepEqual(rows.map((r) => r.f), [0, 5]);
-  assert.equal(total, 9);
-  assert.equal(done, false);
 });
 
 test("a changed file behind a junction changes the assets' stamp, and the same files always stamp the same", async () => {

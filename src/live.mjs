@@ -69,7 +69,7 @@ const smallMix = () => {
 let bundle = "";
 const clients = new Set();
 const send = (event, data = "") => { for (const c of clients) c.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
-const versions = createVersions({ project: PROJECT, here, alias: ALIAS, plugins: [oneThree, nodeBuiltinsEmpty], port: PORT, send, esbuild, squeeze, mixFile: MIX, editFile: EDIT, assetsDir: PUBLIC });
+const versions = createVersions({ project: PROJECT, send, mixFile: MIX, editFile: EDIT, assetsDir: PUBLIC, codeDir: SRC });
 
 // Notes spoken in the studio: one JSON object per line, so an AI agent can read them. Pictures sit beside them in notes/img
 const NOTES = join(PROJECT, "notes/notes.jsonl");
@@ -350,7 +350,7 @@ const notify = {
       if (r.errors.length) { const m = r.errors.map((e) => `${e.location?.file}:${e.location?.line} ${e.text}`).join("\n"); console.log(m); send("error-build", m); if (!bundle) bundle = `throw new Error(${JSON.stringify(m)})`; } else {
         const fresh = r.outputFiles[0].contents, same = bundle && !(typeof bundle === "string") && Buffer.compare(bundle, fresh) === 0; // a comment saved changes nothing: no reason to reload the page
         bundle = fresh;
-        if (!same) send("code");
+        if (!same) { send("code"); versions.changed(); }
         console.log("built");
       }
     });
@@ -362,7 +362,6 @@ const ctx = await esbuild.context({
 });
 await ctx.rebuild().catch(() => {}); // notify has it: the page says what's wrong and comes up when it's fixed
 await ctx.watch();
-await versions.start();
 // This machine only, unless asked: --lan opens it to the network for a phone, and nothing here asks for a password
 const LAN = process.argv.includes("--lan");
 server.listen(PORT, LAN ? "0.0.0.0" : "127.0.0.1", () => {

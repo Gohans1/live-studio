@@ -1,23 +1,18 @@
-// Before and after. Every change to the film is kept as a version, cheaply (the code bundle, edit.json, a fingerprint of the sound and
-// assets, shared between versions when unchanged), so the studio can draw an old version beside the current one and say where they differ.
-// The picture isn't compared here: a headless Chrome draws both versions and reports back, and results are saved as they come, so a stopped run resumes.
-import { spawn } from "node:child_process";
+// What changed since the version last watched. Every change to the film is kept as a version, cheaply (edit.json, how loud the
+// mix was over time, a fingerprint of the film's code and of its assets, shared between versions when unchanged), and two
+// versions are told apart in words: edits from edit.json with their times, where the sound changed, whether code or asset
+// files changed. No old version is drawn: trying looks or sounds side by side is the film's own options (draw.variants,
+// trials.json), far cheaper than building and scanning a whole old film.
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { constants as osConstants, setPriority } from "node:os";
-import { readdir, stat } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
-import { gzipSync } from "node:zlib";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { join, relative } from "node:path";
 
 const KEEP = 30;
-const RANGE_GAP = 1; // seconds
 const CUE_LENGTH = 0.5; // a mark needs some width to be seen and jumped to
 const hash = (data) => createHash("md5").update(data).digest("hex").slice(0, 12);
 const ENVELOPE_STEP = 0.05, SOUND_LIMIT = 0.001, SOUND_GAP = 0.5;
 const PACED_MARGIN = 0.3, PACED_LIMIT = 0.002, PACED_RUN = 2; // tuned on a real voice mix, see the comment in soundRanges
-const JOB_LIMIT = 15 * 60e3;
-const START_LIMIT = 120e3; // loading both versions of a long film on a slow disk took 40s
-const SCAN_QUIET = 8e3; // a scan takes a Chrome 12s to get going and pegs the machine: while an AI is still saving, the result would be thrown away anyway
 const MAX_BODY = 20 * 1024 * 1024;
 const SOUND_FILE = /\.(wav|mp3|ogg|opus|flac|m4a|aac|webm)$/i;
 const TOP_NAMES = { beats: "hành động", camera: "camera", cuts: "điểm cắt", face: "mặt", voice: "giọng", zoomRate: "tốc độ zoom" };
@@ -181,18 +176,6 @@ export const trimVersions = (versions, keep) => {
   return out;
 };
 
-export const parseRows = (text) => {
-  const rows = [];
-  let total = 0, done = false, ends = null;
-  for (const l of text.split("\n")) {
-    if (!l.trim()) continue;
-    let r;
-    try { r = JSON.parse(l); } catch { continue; } // a line cut off when a run was stopped: that frame is simply drawn again
-    if (r.total) { total = r.total; ends = r.ends ?? ends; } else if (r.done) done = true; else if (!r.failed) rows.push(r);
-  }
-  return { rows, total, done, ends };
-};
-
 // Every file's size and time, in a fixed order. Follows junctions, which is why nothing cheaper will do: a film's assets are mostly behind them, and fs.watch sees nothing there.
 // Async, because thousands of files on a slow disk would otherwise hold up every request for a second
 export const stampAssets = async (dir) => {
@@ -211,20 +194,32 @@ export const stampAssets = async (dir) => {
 
 export const readJson = (req) => new Promise((ok, no) => { const parts = []; let size = 0; req.on("data", (d) => { size += d.length; if (size > MAX_BODY) { no(new Error("request too large")); req.destroy(); } else parts.push(d); }); req.on("end", () => { try { ok(JSON.parse(Buffer.concat(parts).toString("utf8"))); } catch (e) { no(e); } }); req.on("error", no); });
 
-export const createVersions = ({ project, here, alias, plugins, port, send, esbuild, squeeze, mixFile, editFile, assetsDir }) => {
+// The film's own code, by content: saving a file unchanged is no new version. edit.json is a version's edit, not its code
+const hashCode = async (dir, skip) => {
+  const h = createHash("md5");
+  const go = async (d) => {
+    let names = [];
+    try { names = (await readdir(d)).sort(); } catch { return; }
+    for (const n of names) {
+      const p = join(d, n);
+      if (p === skip) continue;
+      try { if ((await stat(p)).isDirectory()) await go(p); else h.update(relative(dir, p)).update(await readFile(p)); } catch {} // gone since it was listed
+    }
+  };
+  await go(dir);
+  return h.digest("hex").slice(0, 12);
+};
+
+export const createVersions = ({ project, send, mixFile, editFile, assetsDir, codeDir }) => {
   const ROOT = join(project, "renders/versions");
-  const CODE = join(ROOT, "code"), EDITS = join(ROOT, "edits"), SOUNDS = join(ROOT, "sound"), ASSETS = join(ROOT, "assets"), COMPARES = join(ROOT, "compares");
-  for (const d of [CODE, EDITS, SOUNDS, ASSETS, COMPARES]) mkdirSync(d, { recursive: true });
+  const EDITS = join(ROOT, "edits"), SOUNDS = join(ROOT, "sound"), ASSETS = join(ROOT, "assets");
+  for (const d of [EDITS, SOUNDS, ASSETS]) mkdirSync(d, { recursive: true });
+  // Left by the studio that drew old versions and scanned their pictures: tens of MB nothing reads any more
+  for (const n of readdirSync(ROOT)) if (["code", "compares", "view.js"].includes(n) || n.startsWith("chrome_")) { try { rmSync(join(ROOT, n), { recursive: true, force: true }); } catch {} }
   const INDEX = join(ROOT, "index.json");
   let index = { versions: [], seen: null, base: null };
   try { index = { ...index, ...JSON.parse(readFileSync(INDEX, "utf8")) }; } catch {}
-  let code = null, job = null, timer = null, mixSeen = {}, retries = 0, snapshotting = false, lastChange = 0, quietTimer = null;
-  const removeProfile = (dir) => { try { rmSync(dir, { recursive: true, force: true }); } catch {} }; // a Chrome just killed can still hold it: the next start clears it
-  const sweepProfiles = () => { for (const n of readdirSync(ROOT)) if (n.startsWith("chrome_")) removeProfile(join(ROOT, n)); }; // left by a killed studio or a Chrome still closing: tens of MB each
-  sweepProfiles();
-  const failures = new Map(); // for this run only: restarting the studio tries a failed pair again, from where it stopped
-  const crashes = new Map();
-  const wanted = []; // pairs a page still waits on while another runs: only one Chrome at a time
+  let timer = null, mixSeen = {}, retries = 0, snapshotting = false;
 
   const saveIndex = () => {
     const fresh = `${INDEX}.new`;
@@ -242,20 +237,18 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
   const prune = () => {
     index.versions = trimVersions(index.versions, new Set([index.seen, index.base]));
     const live = (key) => new Set(index.versions.map((v) => v[key]));
-    for (const [dir, key, ext] of [[CODE, "code", ".js"], [EDITS, "edit", ".json"], [SOUNDS, "mix", ".f32"], [ASSETS, "assets", ".json"]]) {
+    for (const [dir, key, ext] of [[EDITS, "edit", ".json"], [SOUNDS, "mix", ".f32"], [ASSETS, "assets", ".json"]]) {
       const used = live(key);
       for (const f of readdirSync(dir)) if (!used.has(f.replace(ext, ""))) rmSync(join(dir, f), { force: true });
     }
-    const ids = new Set(index.versions.map((v) => v.id));
-    for (const f of readdirSync(COMPARES)) { const [a, b] = f.replace(".jsonl", "").split("_"); if (!ids.has(a) || !ids.has(b)) rmSync(join(COMPARES, f), { force: true }); }
   };
 
   const snapshot = async () => {
-    if (!code) return;
     const stamps = JSON.stringify(await stampAssets(assetsDir)), assetsId = hash(stamps); // first: everything after this happens in one go
+    const codeId = await hashCode(codeDir, editFile);
     let edit;
     try { edit = JSON.stringify(JSON.parse(readFileSync(editFile, "utf8"))); } catch { return; } // caught mid-save: the next change event brings it
-    const codeId = hash(code), editId = hash(edit);
+    const editId = hash(edit);
     let mixId = null;
     if (existsSync(mixFile)) {
       // Windows reports files as changed when they're only read, so this runs often: the mix is only read when it really moved
@@ -267,15 +260,12 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
     }
     const id = hash([codeId, editId, mixId, assetsId].join());
     if (current() === id) return;
-    writeFileSync(join(CODE, `${codeId}.js`), code);
     writeFileSync(join(EDITS, `${editId}.json`), edit);
     writeFileSync(join(ASSETS, `${assetsId}.json`), stamps);
     index.versions = index.versions.filter((v) => v.id !== id);
     index.versions.push({ id, at: new Date().toISOString(), code: codeId, edit: editId, mix: mixId, assets: assetsId });
     prune();
     saveIndex();
-    lastChange = Date.now();
-    stopJob(); // what it's scanning was just replaced
     send("versions");
   };
   // Saves come in bursts while an AI works, and one round of fixes is one thing to compare
@@ -301,102 +291,19 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
   const assetChanges = (a, b) => {
     if (a.assets === b.assets) return [];
     const ma = JSON.parse(readFileSync(join(ASSETS, `${a.assets}.json`), "utf8")), mb = JSON.parse(readFileSync(join(ASSETS, `${b.assets}.json`), "utf8"));
-    return [...new Set([...Object.keys(ma), ...Object.keys(mb)])].filter((k) => ma[k] !== mb[k] && !SOUND_FILE.test(k)); // sound is compared on its own: the warning is about old versions showing today's pictures
+    return [...new Set([...Object.keys(ma), ...Object.keys(mb)])].filter((k) => ma[k] !== mb[k] && !SOUND_FILE.test(k)); // sound shows as where the mix changed
   };
-
-  const chromePath = () => [process.env.LIVE_CHROME, join(project, "tools/chrome-headless-shell/chrome-headless-shell.exe"), join(project, "tools/chrome-headless-shell/chrome-headless-shell"),
-    "C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"].find((p) => p && existsSync(p));
-
-  const stopJob = () => { if (!job) return; clearTimeout(job.limit); job.proc.kill(); job = null; };
-  process.on("exit", () => job?.proc.kill());
-  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(signal, () => process.exit(0));
-  const compareFile = (a, b) => join(COMPARES, `${a}_${b}.jsonl`);
-  const readRows = (a, b) => { const f = compareFile(a, b); return parseRows(existsSync(f) ? readFileSync(f, "utf8") : ""); };
-  const startJob = (a, b) => {
-    if (job?.a === a && job?.b === b) return true;
-    if (job && job.b === current() && !wanted.some((w) => w[0] === job.a && w[1] === job.b)) wanted.unshift([job.a, job.b]);
-    stopJob();
-    const chrome = chromePath();
-    if (!chrome) return false;
-    sweepProfiles();
-    const profile = join(ROOT, `chrome_${process.pid}_${Date.now()}`); // its own: the last job's Chrome may still be closing
-    mkdirSync(profile, { recursive: true });
-    const proc = spawn(chrome, [chrome.includes("headless-shell") ? "--headless" : "--headless=new", "--use-gl=angle", "--use-angle=default", "--enable-gpu", "--ignore-gpu-blocklist", "--no-first-run", "--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows", `--user-data-dir=${profile}`, "--remote-debugging-port=0", `http://127.0.0.1:${port}/compare-job/${a}/${b}`], { stdio: "ignore" });
-    try { setPriority(proc.pid, osConstants.priority.PRIORITY_BELOW_NORMAL); } catch {} // the film being watched goes first
-    const key = `${a}_${b}`;
-    const fail = (message) => { failures.set(key, message); send("compare", { a, b }); };
-    const mine = { a, b, proc, limit: setTimeout(() => { if (job === mine) { stopJob(); fail("quá lâu, bật lại studio để dò tiếp"); nextJob(); } }, JOB_LIMIT) };
-    job = mine;
-    setTimeout(() => { if (job === mine && !mine.started) { stopJob(); fail("Chrome không chạy được, bật lại studio để thử lại"); nextJob(); } }, START_LIMIT);
-    proc.on("error", (e) => { if (job !== mine) return; clearTimeout(mine.limit); job = null; fail(`không mở được Chrome: ${e.message}`); nextJob(); });
-    // Closing by itself means it crashed: what it found is saved, so go on from there, but don't loop on a crash that keeps happening
-    proc.on("close", () => {
-      removeProfile(profile);
-      if (job !== mine) return;
-      clearTimeout(mine.limit);
-      job = null;
-      const n = (crashes.get(key) ?? 0) + 1;
-      crashes.set(key, n);
-      if (n > 2) { fail("Chrome cứ tắt giữa chừng, bật lại studio để dò tiếp"); nextJob(); return; }
-      console.log("compare: Chrome closed, going on");
-      setTimeout(() => { if (!job) startJob(a, b); }, 1000);
-    });
-    return true;
-  };
-
-  const nextJob = () => {
-    while (wanted.length && !job) {
-      const [a, b] = wanted.shift();
-      if (find(a) && find(b) && b === current() && !readRows(a, b).done && !failures.has(`${a}_${b}`)) startJob(a, b);
-    }
-  };
-  // Scanning draws two more copies of the film, so it waits until someone is comparing: it would otherwise run on every save, under whatever is being watched
-  const compareResult = (a, b, scan) => {
+  const compareResult = (a, b) => {
     const A = find(a), B = find(b), editA = readEdit(A), editB = readEdit(B);
     const warpB = editB.voice?.warp, warpA = editA.voice?.warp;
     const edits = describeEdit(editA, editB).map((e) => ({ at: e.source === null ? null : mapTime(warpB, e.source, 0, 1), text: e.text }));
-    const pictureMayDiffer = A.code !== B.code || A.edit !== B.edit;
-    const { rows, total, done, ends } = readRows(a, b), failed = failures.get(`${a}_${b}`) ?? null;
-    let state = "none";
-    if (pictureMayDiffer) {
-      if (done) state = "done";
-      else if (failed) state = "failed";
-      else if (!scan) state = "waiting";
-      else if (Date.now() - lastChange < SCAN_QUIET) {
-        state = "settling";
-        clearTimeout(quietTimer);
-        quietTimer = setTimeout(() => send("compare", { a, b }), SCAN_QUIET - (Date.now() - lastChange) + 100); // the page asks again, and this time it starts
-      }
-      else state = startJob(a, b) ? "running" : "no-chrome";
-    }
-    const sorted = rows.toSorted((p, q) => p.f - q.f), ranges = [];
-    let open = null;
-    for (const r of sorted) {
-      if (!r.n) continue;
-      // A hand that pauses for half a second is still one change
-      if (open && r.f / 30 - open.to <= RANGE_GAP) { open.to = r.f / 30; open.whole ||= !!r.w; } else { open = { from: r.f / 30, to: r.f / 30, whole: !!r.w }; ranges.push(open); }
-    }
-    // Both scans stop where the new film ends, so a cut tail can't show up as a difference in the picture
-    const length = ends && Math.abs(ends[1] - ends[0]) > 0.05 ? { at: mapTime(warpB, Math.min(...ends), 0, 1), by: ends[1] - ends[0] } : null;
-    return {
-      length, a, b, atA: A.at, atB: B.at, edits, code: A.code !== B.code, sound: mergeRanges([...mixRanges(A, B, warpA, warpB), ...cueRanges(editA, editB, warpB)]), assets: assetChanges(A, B),
-      picture: { state, failed, done: rows.length, total, ranges, rows: sorted.filter((r) => r.n).map((r) => [r.f, r.w ? 1 : 0, r.b ?? []]) },
-    };
+    return { a, b, atA: A.at, atB: B.at, edits, code: A.code !== B.code, sound: mergeRanges([...mixRanges(A, B, warpA, warpB), ...cueRanges(editA, editB, warpB)]), assets: assetChanges(A, B) };
   };
 
-  const json = (req, res, data) => {
-    res.setHeader("content-type", "application/json");
-    res.setHeader("cache-control", "no-store");
-    const text = JSON.stringify(data);
-    if (text.length < 1024 || !/gzip/.test(req.headers["accept-encoding"] ?? "")) { res.end(text); return; }
-    res.setHeader("content-encoding", "gzip"); // sent every second during a scan, over a phone's relay
-    res.end(gzipSync(text));
-  };
-  const missing = (res) => { res.statusCode = 404; res.end(); };
-
+  const json = (res, data) => { res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store"); res.end(JSON.stringify(data)); };
   const route = async (req, res, url) => {
     if (url === "/versions.json") {
-      json(req, res, { current: current(), before: beforeId(), seen: index.seen, versions: index.versions.map((v) => ({ id: v.id, at: v.at })) });
+      json(res, { current: current(), before: beforeId(), seen: index.seen, versions: index.versions.map((v) => ({ id: v.id, at: v.at })) });
       return true;
     }
     if (req.method === "POST" && url === "/seen") {
@@ -409,63 +316,12 @@ export const createVersions = ({ project, here, alias, plugins, port, send, esbu
       res.end("ok");
       return true;
     }
-    // By the code's own hash: most saves change only the edit, and a new version shouldn't download the same film again
-    const bundle = /^\/before\/code\/([0-9a-f]+)\.js$/.exec(url);
-    if (bundle) {
-      const f = join(CODE, `${bundle[1]}.js`);
-      if (!existsSync(f)) { missing(res); return true; }
-      res.setHeader("cache-control", "max-age=31536000");
-      res.setHeader("content-type", "text/javascript");
-      res.end(squeeze(req, res, readFileSync(f), bundle[1]));
-      return true;
-    }
-    const before = /^\/before\/([0-9a-f]+)\/(edit\.json)?$/.exec(url);
-    if (before) {
-      const v = find(before[1]);
-      if (!v) { missing(res); return true; }
-      res.setHeader("cache-control", before[2] ? "max-age=31536000" : "no-cache"); // an edit never changes under its version's name, the page around it can
-      if (before[2] === "edit.json") { res.setHeader("content-type", "application/json"); res.end(readFileSync(join(EDITS, `${v.edit}.json`))); }
-      else { res.setHeader("content-type", "text/html; charset=utf-8"); res.end('<!doctype html><meta charset="utf-8"><base href="/"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100%;height:100%}</style><canvas id="gl"></canvas><script>addEventListener("error",e=>parent.postMessage({filmError:e.message},"*"))</script><script type="module" src="/before/code/' + v.code + '.js"></script>'); }
-      return true;
-    }
-    const pair = /^\/compare(-job)?\/([0-9a-f]+)\/([0-9a-f]+)(?:\/(done|rows|start|finish|fail))?$/.exec(url);
+    const pair = /^\/compare\/([0-9a-f]+)\/([0-9a-f]+)$/.exec(url);
     if (!pair) return false;
-    const [, isJob, a, b, step] = pair;
-    if (!find(a) || !find(b)) { missing(res); return true; }
-    if (!isJob) { json(req, res, compareResult(a, b, req.url.includes("scan=1"))); return true; }
-    if (!step) { res.setHeader("content-type", "text/html; charset=utf-8"); res.end(readFileSync(join(here, "compare_job.html"))); return true; }
-    if (step === "done") { json(req, res, readRows(a, b).rows.map((r) => r.f)); return true; }
-    const data = await readJson(req);
-    const file = compareFile(a, b);
-    if (step === "start" && job?.a === a && job?.b === b) job.started = true;
-    if (step === "start") appendFileSync(file, JSON.stringify({ total: data.total, ends: data.ends }) + "\n");
-    if (step === "rows") appendFileSync(file, data.map((r) => JSON.stringify(r) + "\n").join(""));
-    if (step === "finish") appendFileSync(file, '{"done":true}\n');
-    send("compare", { a, b });
-    if (step === "finish" && job?.a === a && job?.b === b) { stopJob(); nextJob(); }
-    // Only the job running now counts: one just stopped for another pair can report the failures of its own stopping.
-    // A file that failed to load may load next time, a film that throws will say so again
-    if (step === "fail" && job?.a === a && job?.b === b) {
-      stopJob();
-      const key = `${a}_${b}`, n = (crashes.get(key) ?? 0) + 1;
-      crashes.set(key, n);
-      if (n > 2) { failures.set(key, String(data.message).slice(0, 300)); send("compare", { a, b }); nextJob(); } else setTimeout(() => { if (!job) startJob(a, b); }, 1000);
-    }
-    res.end("ok");
+    if (!find(pair[1]) || !find(pair[2])) { res.statusCode = 404; res.end(); return true; }
+    json(res, compareResult(pair[1], pair[2]));
     return true;
   };
 
-  const start = async () => {
-    // The bundle holds code only: its edit.json comes from the version being shown, before anything in the film runs
-    const editAtRuntime = { name: "edit-at-runtime", setup(b) {
-      b.onResolve({ filter: /\/edit\.json$/ }, () => ({ path: "edit.json", namespace: "version-edit" }));
-      b.onLoad({ filter: /.*/, namespace: "version-edit" }, () => ({ contents: 'export default await (await fetch(new URL("edit.json", location.href))).json();', loader: "js" }));
-    } };
-    const noteBuilt = { name: "note-built", setup(b) { b.onEnd((r) => { if (!r.errors.length) { code = r.outputFiles[0].contents; changed(); } }); } };
-    const ctx = await esbuild.context({ absWorkingDir: project, entryPoints: [join(here, "compare_view.ts")], alias, bundle: true, format: "esm", outfile: join(ROOT, "view.js"), logLevel: "silent", write: false, minifyWhitespace: true, minifySyntax: true, plugins: [...plugins, editAtRuntime, noteBuilt] });
-    await ctx.rebuild().catch(() => {}); // the film doesn't build yet: the page says why, and the next save builds it
-    await ctx.watch();
-  };
-
-  return { route, changed, start, current };
+  return { route, changed, current };
 };
