@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -33,7 +33,7 @@ before(async () => {
 });
 after(async () => { await page.close(); rmSync(dir, { recursive: true, force: true }); });
 
-test("the film builds into the page, with a Node library's built-ins left out", () => {
+test("the film builds into the page, even with a Node library that requires a Node built-in", () => {
   assert.equal(heard.length, 0, heard.join("\n"));
   assert.match(page.html(), /src="\/_studio\/index-[\w-]+\.js"/);
   assert.ok(readdirSync(join(page.dir, "_studio")).some((f) => f.endsWith(".js")));
@@ -64,11 +64,23 @@ test("a real change to the film's code reloads the page", async () => {
   assert.deepEqual(heard, ["change"]);
 });
 
+test("a rebuild keeps the last build's files for pages still loading it, and clears out old ones", async () => {
+  const code = join(page.dir, "_studio"), last = readdirSync(code);
+  const stale = join(code, "index-gone.js"), longAgo = new Date(Date.now() - 2 * 3600e3);
+  writeFileSync(stale, "");
+  utimesSync(stale, longAgo, longAgo);
+  await save(`${readFileSync(scene, "utf8")}\nexport const again = "newer";\n`);
+  assert.deepEqual(last.filter((f) => !existsSync(join(code, f))), []);
+  assert.equal(existsSync(stale), false);
+});
+
 test("saving edit.json rebuilds nothing: the page reads it fresh", async () => {
   heard.length = 0;
-  const before = page.html();
+  const builds = [], count = (e) => e.code === "START" && builds.push(e.code);
+  page.watcher.on("event", count);
   appendFileSync(join(dir, "src/edit.json"), "\n");
   await new Promise((done) => setTimeout(done, 1500));
-  assert.equal(page.html(), before);
+  page.watcher.off("event", count);
+  assert.deepEqual(builds, []);
   assert.deepEqual(heard, []);
 });

@@ -106,6 +106,9 @@ export const useStudio = <T,>(pick: (s: StudioState) => T) => useStore(studio, p
 export const set = studio.setState;
 export const get = studio.getState;
 
+// The box over the picture, kept until closed: what broke and where, as the old page showed it
+export const showError = (e: unknown) => set({ error: e instanceof Error ? (e.stack ?? e.message) : String(e) });
+
 let statusTimer = 0;
 // A line over the picture that says what just happened, gone after a few seconds
 export const say = (words: string, hold = 3000) => {

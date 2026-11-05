@@ -2,7 +2,7 @@
 // of either. A page only hears about a build that came out different, so a saved comment or a save of the same text reloads
 // nothing. Built, not served by Vite's dev server: that server reloads every open page whenever its connection drops, and a
 // phone's connection drops each time its screen locks.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { constants } from "node:zlib";
 import { build } from "vite";
@@ -11,11 +11,24 @@ import { STUDIO } from "./film.mjs";
 import { filmPlugin } from "./vite_film.mjs";
 
 export const ASSETS = "_studio"; // the page's own files, under a name no film folder in assets/public uses
+// How long a build's files outlive it. A page that loaded the last build's index.html still fetches its code (and App later, on
+// its own), and a page left open asks for its source maps when it throws
+const KEEP = 3600e3;
 
 export const buildPage = (film, { onChange = () => {}, onError = () => {} } = {}) => new Promise((ready, fail) => {
   // One per film, since several films run this studio at once
   const dir = join(film.PROJECT, "node_modules/.vite/live-studio-page");
-  let html = null, error = null, started = false;
+  let html = null, error = null, started = false, written = [];
+  const lastIn = new Map(); // file -> when a build last wrote it
+  const clearOld = () => {
+    const now = Date.now();
+    for (const f of written) lastIn.set(f, now);
+    for (const f of readdirSync(join(dir, ASSETS))) {
+      const file = join(dir, ASSETS, f);
+      // Files from before the studio started are judged by their age on disk
+      if (now - (lastIn.get(`${ASSETS}/${f}`) ?? statSync(file).mtimeMs) > KEEP) { rmSync(file, { force: true }); lastIn.delete(`${ASSETS}/${f}`); }
+    }
+  };
   const page = { dir, html: () => html, error: () => error, watcher: null, close: () => page.watcher?.close() };
   const start = () => { if (!started) { started = true; ready(page); } };
   build({
@@ -23,10 +36,10 @@ export const buildPage = (film, { onChange = () => {}, onError = () => {} } = {}
     logLevel: "warn",
     // Squeezed once per build, beside each file, so a phone over Tailscale downloads about a quarter. Brotli at 9, not 11:
     // nearly as small, and a save is ready to reload in a fraction of a second instead of six
-    plugins: [filmPlugin(film), compression({ algorithms: [defineAlgorithm("brotliCompress", { params: { [constants.BROTLI_PARAM_QUALITY]: 9 } }), "gzip"] })],
+    plugins: [filmPlugin(film), { name: "live-studio-written", writeBundle: (_, bundle) => { written = Object.keys(bundle); } }, compression({ algorithms: [defineAlgorithm("brotliCompress", { params: { [constants.BROTLI_PARAM_QUALITY]: 9 } }), "gzip"] })],
     build: {
       outDir: dir,
-      emptyOutDir: true,
+      emptyOutDir: false, // see clearOld
       assetsDir: ASSETS,
       sourcemap: true,
       // Names kept: a film that throws shows its stack in the page and in this terminal, where no source map reaches
@@ -52,6 +65,7 @@ export const buildPage = (film, { onChange = () => {}, onError = () => {} } = {}
         const changed = next !== html || error !== null;
         html = next;
         error = null;
+        clearOld();
         if (started && changed) onChange();
         start();
       }

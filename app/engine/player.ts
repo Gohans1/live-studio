@@ -11,7 +11,7 @@ import { followChanges, loadVersions } from "./changes";
 import { flushNotes, followNotes, loadNotes, noteAt, openNote, pinsHere, restoreDraft } from "./notes";
 import { audioCtx, followChips, loadSounds, loadTrials, optionRanges } from "./options";
 import { type Elements, type Line, S } from "./state";
-import { get, type Pin, say, set } from "./store";
+import { get, type Pin, say, set, showError } from "./store";
 import { attachTimeline, drawTimelines, marks, refreshTimes, shotEnd, shotIndex } from "./timeline";
 
 // ---------- Time
@@ -352,7 +352,7 @@ const listen = () => {
   // A code change waits for a note being spoken or a film playing: reloading now would throw the words away
   const codeChanged = () => { if (get().compose || S.playing) { S.reloadWaiting = true; say("code đổi, sẽ tải lại khi dừng", 0); return; } reloadNow(); };
   onEvent("code", codeChanged);
-  onEvent("build-error", (message) => say(`code lỗi, trang vẫn chạy bản trước: ${message.split("\n")[0]}`, 0));
+  onEvent("build-error", (message) => showError(`Code lỗi, trang vẫn chạy bản trước. Sửa xong là trang tự tải lại.\n\n${message}`));
   onEvent("sound-start", () => say("đang trộn tiếng…"));
   onEvent("sound", () => { loadMix(); loadTrials(); say("tiếng đã cập nhật"); });
   onEvent("notes", loadNotes);
@@ -425,7 +425,13 @@ export const start = async (el: Elements) => {
 
 const warm = SHOTS.map((_, i) => i).sort((a, b) => Math.abs(SHOTS[a].t - S.t) - Math.abs(SHOTS[b].t - S.t));
 let drawMs = 0, frames = 0, fpsAt = performance.now(), shownShot = -1;
+// A film that throws at one moment still lets the dev move to another: the error shows and the next frame comes anyway
 const loop = () => {
+  try { frame(); } catch (e) { showError(e); }
+  // A page in the background gets no animation frames, and the sound would carry on without the picture
+  if (document.hidden) setTimeout(loop, 100); else requestAnimationFrame(loop);
+};
+const frame = () => {
   const { audio } = S.el;
   if (S.playing) {
     // Sound is the clock, so picture and voice can't drift; slow frames are skipped, never delayed.
@@ -472,7 +478,5 @@ const loop = () => {
     frames = 0; fpsAt = now;
     set({ perf: `${S.playing ? fps.toFixed(0) + " fps, " : ""}${drawMs.toFixed(0)} ms/frame` });
   }
-  // A page in the background gets no animation frames, and the sound would carry on without the picture
-  if (document.hidden) setTimeout(loop, 100); else requestAnimationFrame(loop);
 };
 

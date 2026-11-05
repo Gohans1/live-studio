@@ -134,7 +134,7 @@ export function NoteList() {
           <TabsTrigger value="history" className={trigger}>Lịch sử ({old.length})</TabsTrigger>
           {showDiff && <TabsTrigger value="diff" className={trigger}>Thay đổi ({changes.length})</TabsTrigger>}
         </TabsList>
-        <span role="status" className={cn("min-w-0 flex-1 truncate text-end text-xs text-ok", saved === "busy" && "text-muted-foreground", saved === "fail" && "font-semibold whitespace-normal text-warn")}>{savedText}</span>
+        <span role="status" className={cn("flex-1 text-end text-xs whitespace-nowrap text-ok", saved === "busy" && "text-muted-foreground", saved === "fail" && "font-semibold whitespace-normal text-warn")}>{savedText}</span>
       </div>
       {tab === "diff" && <CompareBar />}
       <div

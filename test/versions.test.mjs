@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { request } from "node:http";
@@ -144,6 +144,18 @@ test("init refuses to remove a project's own changes, and refuses the studio its
     assert.equal(spawnSync("node", [join(clone, "init.mjs"), clone], { encoding: "utf8" }).status, 1);
     assert.ok(existsSync(join(clone, "src/versions.mjs")));
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("init links the film to this studio, never a copy of it", () => {
+  const film = mkdtempSync(join(tmpdir(), "studio-film-"));
+  try {
+    writeFileSync(join(film, "package.json"), JSON.stringify({ private: true, type: "module" }));
+    const r = spawnSync("node", [join(REPO, "init.mjs"), film], { encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    const link = join(film, "node_modules/live-studio");
+    assert.ok(lstatSync(link).isSymbolicLink(), "node_modules/live-studio is a link");
+    assert.equal(realpathSync(link), realpathSync(REPO));
+  } finally { rmSync(film, { recursive: true, force: true }); }
 });
 
 describe("the server", () => {

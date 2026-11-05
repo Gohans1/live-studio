@@ -14,6 +14,19 @@ const walk = (key: string, fast: boolean) => {
   moveCam(key === "W" ? s : key === "S" ? -s : 0, key === "D" ? s : key === "A" ? -s : 0, key === "E" ? s : key === "Q" ? -s : 0);
 };
 
+// The keyboard walking a list (notes, settings) scrolls it with Up and Down; everywhere else they set the volume
+const walkingList = (e: KeyboardEvent) => {
+  const at = e.target;
+  if (!(at instanceof Element) || !at.matches(":focus-visible")) return false;
+  for (let el: Element | null = at; el; el = el.parentElement) if (el.scrollHeight > el.clientHeight && /auto|scroll/.test(getComputedStyle(el).overflowY)) return true;
+  return false;
+};
+const volumeKey = (up: boolean): UseHotkeyDefinition => ({
+  hotkey: up ? "ArrowUp" : "ArrowDown",
+  callback: (e) => { if (walkingList(e)) return; e.preventDefault(); nudgeVolume(up); },
+  options: { preventDefault: false },
+});
+
 export function useStudioHotkeys() {
   const free = useStudio((s) => s.free), settingsOpen = useStudio((s) => s.settingsOpen);
   const hasDiff = useStudio((s) => !!s.before || s.changes.length > 0), hasChanges = useStudio((s) => s.changes.length > 0);
@@ -24,8 +37,8 @@ export function useStudioHotkeys() {
     { hotkey: "ArrowRight", callback: () => seek(S.t + 1 / FPS) },
     { hotkey: "Shift+ArrowLeft", callback: () => seek(S.t - 5) },
     { hotkey: "Shift+ArrowRight", callback: () => seek(S.t + 5) },
-    { hotkey: "ArrowUp", callback: () => nudgeVolume(true) },
-    { hotkey: "ArrowDown", callback: () => nudgeVolume(false) },
+    volumeKey(true),
+    volumeKey(false),
     { hotkey: "[", callback: () => jumpShot(-1) },
     { hotkey: "]", callback: () => jumpShot(1) },
     { hotkey: "N", callback: () => openNote(null) },

@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { start } from "./engine/player";
 import type { Elements } from "./engine/state";
-import { set } from "./engine/store";
+import { set, showError } from "./engine/store";
 import { Side } from "./ui/Side";
 import { Stage } from "./ui/Stage";
 import { Timeline } from "./ui/Timeline";
@@ -29,8 +29,13 @@ export function App() {
   useEffect(() => {
     if (started) return;
     started = true;
-    start(el.current).catch((e: Error) => set({ error: e.message, loading: "" }));
+    start(el.current).catch((e: Error) => { showError(e); set({ loading: "" }); });
     addEventListener("click", dropClickFocus);
+    // A slider keeps focus after a drag too, and its arrows would then move it instead of stepping the film
+    addEventListener("pointerup", () => { const at = document.activeElement; if (at instanceof HTMLInputElement && at.type === "range") at.blur(); });
+    // Chrome reports a ResizeObserver that skipped a frame as an error; it isn't one
+    addEventListener("error", (e) => { if (!e.message.startsWith("ResizeObserver loop")) showError(e.error ?? e.message); });
+    addEventListener("unhandledrejection", (e) => showError(e.reason));
   }, []);
   return (
     <Toaster limit={3}>

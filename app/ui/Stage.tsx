@@ -1,8 +1,9 @@
 // The picture and what sits on it. The engine draws the frame, the clock, the caption, the pins and the review list straight
 // into these elements every frame; React only draws what changes rarely (badges, option chips, loading, errors)
 import { cn } from "cn";
+import { Button } from "@/components/ui/button";
 import type { Bind } from "../App";
-import { useStudio } from "../engine/store";
+import { set, useStudio } from "../engine/store";
 import { OptionChips } from "./OptionChips";
 
 function Badges() {
@@ -39,7 +40,12 @@ export function Stage({ bind }: { bind: Bind }) {
         <div className="stage-caption"><span ref={bind("caption")} className="stage-caption-text" /></div>
         {loading && <div role="status" className="absolute top-12.5 left-3 z-2 rounded-md bg-black/60 px-2 py-0.5">{loading}</div>}
       </div>
-      {error && <pre role="alert" className="absolute inset-3 z-5 overflow-auto rounded-lg bg-alarm-bg p-3 whitespace-pre-wrap">{error}</pre>}
+      {error && (
+        <div role="alert" className="absolute inset-3 z-5 flex flex-col gap-2 rounded-lg bg-alarm-bg p-3">
+          <pre className="min-h-0 flex-1 overflow-auto font-mono text-xs whitespace-pre-wrap">{error}</pre>
+          <Button variant="outline" size="sm" className="self-end" onClick={() => set({ error: null })}>Đóng</Button>
+        </div>
+      )}
     </div>
   );
 }
