@@ -30,7 +30,8 @@ export function Stage({ bind }: { bind: Bind }) {
       <div ref={bind("stage")} className="relative overflow-hidden bg-black [container-type:size]">
         <canvas ref={bind("canvas")} width={960} height={540} className={cn("absolute inset-0 block size-full touch-none", free ? "cursor-grab" : "cursor-crosshair")} />
         <canvas ref={bind("final")} width={1920} height={1080} hidden className="pointer-events-none absolute inset-0 block size-full" />
-        <div ref={bind("pins")} className="pointer-events-none absolute inset-0 z-2 overflow-hidden" />
+        {/* Above the review list and chips: a passed note shows for 3 s only, and it lets taps through to them */}
+        <div ref={bind("pins")} className="pointer-events-none absolute inset-0 z-4 overflow-hidden" />
         <div ref={bind("clock")} className="stage-clock">00:00.000</div>
         {/* Top left: the badges, then the film's own list of what is going on at this frame. The badge row is as tall as the
             clock, so the list starts below it and can't run under the clock */}

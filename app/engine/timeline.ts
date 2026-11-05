@@ -121,7 +121,7 @@ const drawOverview = () => {
   for (const n of marks.notes()) if (!n.done) { g.fillStyle = "#3AA99F"; g.fillRect((n.t / DURATION) * w - 1, 0, 2, 7); }
   const a = viewCentre() - shown() / 2;
   g.fillStyle = "rgba(255,255,255,.1)"; g.fillRect((a / DURATION) * w, 0, (shown() / DURATION) * w, h);
-  g.fillStyle = "#DA702C"; g.fillRect((S.t / DURATION) * w - 1, 0, 2, h);
+  drawNow(g, (S.t / DURATION) * w, h, false);
 };
 
 const drawDetail = () => {
@@ -208,8 +208,25 @@ const drawDetail = () => {
     g.globalAlpha = 0.18; g.fillStyle = colour; g.fillRect(x0, 20, wide, h - 20);
     g.globalAlpha = 1; g.fillRect(x0, 20, wide, 3);
   }
-  for (const n of marks.notes()) if (n.t >= a && n.t <= b) { const x = X(n.t); g.fillStyle = n.done ? "#575653" : "#3AA99F"; g.beginPath(); g.moveTo(x - 5, 21); g.lineTo(x + 5, 21); g.lineTo(x, 30); g.fill(); g.fillRect(x, 21, 1, h - 21); }
-  g.fillStyle = "#DA702C"; g.fillRect(X(t) - 1, 0, 2, h);
+  // Notes: a marker each, their lines faint so many of them don't drown the playhead; a done note keeps only a dim marker
+  for (const n of marks.notes()) {
+    if (n.t < a || n.t > b) continue;
+    const x = X(n.t);
+    g.fillStyle = n.done ? "#575653" : "#3AA99F";
+    g.beginPath(); g.moveTo(x - 5, 21); g.lineTo(x + 5, 21); g.lineTo(x, 30); g.fill();
+    if (!n.done) { g.globalAlpha = 0.4; g.fillRect(x, 30, 1, h - 30); g.globalAlpha = 1; }
+  }
+  drawNow(g, X(t), h, true);
+};
+
+// The playhead, the one line to find at a glance: a dark edge so no colour behind it hides it, and on the detail a head
+const NOW = "#EC8B49";
+const drawNow = (g: CanvasRenderingContext2D, x: number, h: number, head: boolean) => {
+  g.fillStyle = "#000"; g.fillRect(x - 2, 0, 4, h);
+  g.fillStyle = NOW; g.fillRect(x - 1, 0, 2, h);
+  if (!head) return;
+  g.beginPath(); g.moveTo(x - 7, 0); g.lineTo(x + 7, 0); g.lineTo(x + 7, 10); g.lineTo(x, 17); g.lineTo(x - 7, 10); g.closePath();
+  g.fillStyle = NOW; g.fill(); g.strokeStyle = "#000"; g.lineWidth = 1; g.stroke();
 };
 
 export const drawTimelines = () => { if (!S.el) return; drawOverview(); drawDetail(); };

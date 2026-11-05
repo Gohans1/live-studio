@@ -290,17 +290,19 @@ export const setTryOn = (on: boolean) => { set({ tryOn: on }); stored.set("tryNo
 export const drawPins = () => {
   const box = S.el?.pins;
   if (!box) return;
-  const add = (pin: Pin, saved: boolean) => {
+  // A saved note shows its words, the one being written what was tapped; past 60% across the words go on the left to stay in frame
+  const add = (pin: Pin, saved: boolean, words: string | undefined, fade = 1) => {
     const d = document.createElement("div");
     d.className = saved ? "pin saved" : "pin";
     d.style.left = `${pin.x * 100}%`; d.style.top = `${pin.y * 100}%`;
-    if (pin.what) { const i = document.createElement("i"); i.textContent = pin.what; d.append(i); }
+    if (fade < 1) d.style.opacity = String(fade);
+    if (words) { const i = document.createElement("i"); i.textContent = words; if (pin.x > 0.6) i.className = "left"; d.append(i); }
     box.append(d);
   };
   box.replaceChildren();
-  for (const pin of pinsHere()) add(pin, true);
+  for (const n of pinsHere()) add(n.pin, true, n.text, n.fade);
   const own = get().compose?.pin;
-  if (own) add(own, false);
+  if (own) add(own, false, own.what);
 };
 
 // ---------- The film contract (contract.mjs, docs/film-contract.md): the server checks the film's files, this page its code

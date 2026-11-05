@@ -4,6 +4,7 @@ import { DURATION, SHOTS_OUT as SHOTS } from "film/scene";
 import { EDIT, fromSource, toSource } from "film/edit";
 import { toast } from "@/components/ui/toast";
 import { FPS, getFile, PHONE, postJson, stamp, stored, wait } from "./env";
+import { pinFade } from "./fade";
 import { camLine, captionAt, drawPins, finalCanvas, render, seek, setPlaying } from "./player";
 import { S } from "./state";
 import { type Compose, get, type Note, type Pin, say, set, ui } from "./store";
@@ -287,7 +288,11 @@ export const followNotes = () => {
 };
 export const pinsHere = () => {
   if (S.tools?.free.on) return [];
-  return get().notes.filter((n) => n.pin && !n.done && !n.freeCam && Math.abs(noteAt(n) - S.t) < 0.05).map((n) => n.pin!);
+  const rate = get().rate;
+  return get().notes.flatMap((n) => {
+    const fade = n.pin && !n.done && !n.freeCam ? pinFade(noteAt(n), S.t, rate) : 0;
+    return fade > 0 ? [{ pin: n.pin!, text: n.text, fade }] : [];
+  });
 };
 
 addEventListener("online", flushNotes);

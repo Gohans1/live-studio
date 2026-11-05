@@ -24,6 +24,7 @@ The server listens on this machine only and has no password. To use a phone, put
 - Press the note button, or tap the picture to pin the exact thing you mean. Type or dictate.
 - Tap an old note to edit it in the same box, with a warning before it overwrites. Tap its time to jump there.
 - The list follows the film, keeping the note nearest the playhead in view.
+- Playing past a pinned note shows its pin and words on the picture, fading out over 3 seconds.
 - Fixed notes fold away under **Đã xong** at the bottom of the list, with what was done. **Chưa ưng** sends one back.
 
 Words aren't lost: every keystroke is kept on the device, unsent notes wait and retry when the signal drops, the file is written atomically, × moves a note to `notes/deleted.jsonl` with an undo, and copies pile up in `renders/notes_backup`.
