@@ -1,7 +1,7 @@
 // The note being written. Every keystroke is kept on the device (engine/notes.ts setDraft), so a reload never loses it.
 // On an upright phone it sits right under the picture, so the keyboard can't cover it and a tap still lands on the picture
 import { TriangleAlert } from "lucide-react";
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +16,16 @@ export function Compose() {
     ui.focusNote = () => { flushSync(() => {}); text.current?.focus({ preventScroll: true }); };
     ui.blurNote = () => text.current?.blur();
   }, []);
+  const open = !!compose;
+  // A phone keyboard doesn't report which key it pressed: its Enter only shows up as a line break arriving. Listened to on the
+  // element itself: React's onBeforeInput is its own event, built from keypress and textInput, and never says insertLineBreak
+  useEffect(() => {
+    const box = text.current;
+    if (!open || !box || !PHONE) return;
+    const enter = (e: InputEvent) => { if (e.inputType === "insertLineBreak") { e.preventDefault(); saveNote(); } };
+    box.addEventListener("beforeinput", enter);
+    return () => box.removeEventListener("beforeinput", enter);
+  }, [open]);
   if (!compose) return null;
   const where = compose.editing
     ? `Sửa ghi chú ${compose.time} | shot ${compose.shot}`
@@ -43,8 +53,6 @@ export function Compose() {
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); saveNote(); }
           else if (e.key === "Escape") { e.preventDefault(); cancelNote(); }
         }}
-        // A phone keyboard doesn't report which key it pressed: Enter only shows up as a line break arriving
-        onBeforeInput={(e) => { if (PHONE && (e.nativeEvent as InputEvent).inputType === "insertLineBreak") { e.preventDefault(); saveNote(); } }}
         className="h-28 resize-y border-primary bg-background px-2.5 py-2 text-[15px] leading-normal focus-visible:ring-1 focus-visible:ring-primary pointer-coarse:text-base upright:h-19 sideways:h-16 sideways:px-2 sideways:py-1.5"
       />
       <div className="mt-2 flex gap-2 sideways:mt-1.5">

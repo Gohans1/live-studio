@@ -363,7 +363,8 @@ const listen = () => {
   // Back after the line dropped or the studio restarted: catch up on what changed meanwhile
   onHello((current, reconnect) => {
     if (!current) codeChanged();
-    if (reconnect) { loadVersions(); loadNotes(); }
+    // Not the mix: that is the whole WAV again on every phone unlock. The rest answers "unchanged" for a few bytes
+    if (reconnect) { loadVersions(); loadNotes(); loadEdit(); loadVoice(); loadContract(); loadTrials(); }
   });
 };
 

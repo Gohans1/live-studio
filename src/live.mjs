@@ -12,7 +12,7 @@ const PORT = Number(process.argv[2]) || 4321;
 const LAN = process.argv.includes("--lan");
 
 const events = new Set(); // open pages, see /api/events
-const send = (event, data = "") => { for (const page of events) page.writeSSE({ event, data: String(data) }).catch(() => events.delete(page)); };
+const send = (event, data = "") => { for (const page of events) page.writeSSE({ event, data: String(data) }); }; // a page that left is dropped by /api/events itself
 let film;
 try { film = openFilm(process.env.LIVE_PROJECT ?? process.cwd(), { send }); } catch (e) { console.error(e.message); process.exit(1); }
 

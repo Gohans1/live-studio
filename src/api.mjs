@@ -96,10 +96,12 @@ export const createApi = (film, { page, events }) => {
 
   // Saves and jobs, as they happen (see send in live.mjs). A browser reconnects to this by itself, without reloading the page
   app.get("/api/events", (c) => streamSSE(c, async (stream) => {
+    // Hono tells only the listeners it already has when a page leaves, so listen before the first write can wait on it
+    const gone = new Promise((done) => { stream.onAbort(done); if (stream.aborted) done(); });
     events.add(stream);
     await stream.writeSSE({ event: "hello", data: build() });
-    const alive = setInterval(() => stream.write(": alive\n\n").catch(() => {}), 25e3); // a proxy drops a line that stays quiet
-    await new Promise((done) => stream.onAbort(done));
+    const alive = setInterval(() => stream.write(": alive\n\n"), 25e3); // a proxy drops a line that stays quiet
+    await gone;
     clearInterval(alive);
     events.delete(stream);
   }));

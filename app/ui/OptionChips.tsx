@@ -22,7 +22,8 @@ function Chip({ group: g, range }: { group: GroupView; range: [number, number] }
       <div className="flex gap-1 upright:flex-wrap">
         <ToggleGroup
           value={[g.pick]}
-          onValueChange={(v: string[]) => { const i = g.options.findIndex((o) => o.id === v[0]); if (i >= 0) choose(g.name, i); }}
+          // A tap on the pick already made comes back empty: play it again, as a tap on any other does
+          onValueChange={(v: string[]) => { const i = g.options.findIndex((o) => o.id === (v[0] ?? g.pick)); if (i >= 0) choose(g.name, i); }}
           spacing={1}
           className="flex-wrap"
           aria-label={g.title}
