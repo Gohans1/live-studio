@@ -228,6 +228,13 @@ describe("the server", () => {
     assert.equal(await status("/api/mix.wav", { headers: { range: "bytes=999999999999-" } }), 416);
     assert.equal(await status("/api/notes"), 200);
   });
+  test("still answers the old paths the films' own scripts call (checkpoint.py, publish_pages.py)", async () => {
+    // A missing note changes nothing, so this writes nothing into the demo
+    assert.equal(await status("/notes/testnone", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ done: true }) }), 200);
+    const res = await ask("/edit.json");
+    assert.equal(res.statusCode, 200);
+    assert.match(res.headers["content-type"], /json/);
+  });
   test("refuses a note that isn't whole, or a picture that isn't one", async () => {
     const send = (note, img) => status("/api/notes", { method: "POST", body: JSON.stringify({ note, img }) });
     assert.equal(await send({ id: "testbad" }), 400);

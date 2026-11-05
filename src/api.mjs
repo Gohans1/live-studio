@@ -105,14 +105,16 @@ export const createApi = (film, { page, events }) => {
     clearInterval(alive);
     events.delete(stream);
   }));
-  app.use("/api/*", bodyLimit({ maxSize: 20 * 1024 * 1024 }));
+  // The films' own scripts still call two paths from before /api/: checkpoint.py marks notes done at /notes/:id, and
+  // publish_pages.py reads /edit.json
+  app.on("POST", ["/api/*", "/notes/*"], bodyLimit({ maxSize: 20 * 1024 * 1024 }));
 
   app.get("/api/notes", (c) => fresh(c, film.notes.read()));
   app.post("/api/notes", zValidator("json", NoteIn), async (c) => {
     film.notes.add(c.req.valid("json"), await film.stamp());
     return c.text("ok");
   });
-  app.post("/api/notes/:id{[a-z0-9]+}", zValidator("json", NoteChange), (c) => {
+  app.on("POST", ["/api/notes/:id{[a-z0-9]+}", "/notes/:id{[a-z0-9]+}"], zValidator("json", NoteChange), (c) => {
     film.notes.change(c.req.param("id"), c.req.valid("json"));
     return c.text("ok");
   });
@@ -124,7 +126,7 @@ export const createApi = (film, { page, events }) => {
     return c.body(pic);
   });
 
-  app.get("/api/edit.json", (c) => text(c, readFileSync(film.EDIT)));
+  app.on("GET", ["/api/edit.json", "/edit.json"], (c) => text(c, readFileSync(film.EDIT)));
   app.get("/api/voice_map.json", (c) => fileOrMissing(c, film.VOICE_MAP));
   app.get("/api/shots.json", (c) => text(c, Buffer.from(JSON.stringify(film.shotComments()))));
   app.get("/api/trials.json", (c) => { const t = film.trials(); return t ? text(c, Buffer.from(JSON.stringify(t))) : c.body(null, 404); });

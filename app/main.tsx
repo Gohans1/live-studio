@@ -23,7 +23,8 @@ try {
   // The film's own code loads with the app, so this is either a film that throws while loading or code that never arrived.
   // Chrome, Firefox and Safari each word the second differently, but all as a TypeError about importing; a phone that lost
   // the line halfway tries again by itself a few times
-  const notDownloaded = e instanceof TypeError && /import/i.test(e.message);
+  // What Chrome, Firefox and Safari say when the code file itself did not arrive; anything else is the film's own error
+  const notDownloaded = e instanceof TypeError && /dynamically imported module|Importing a module script failed/.test(e.message);
   const tries = Number(stored.get("pageTries", sessionStorage)) || 0;
   if (notDownloaded && tries < 3 && stored.set("pageTries", String(tries + 1), sessionStorage)) location.reload();
   else showFailure(notDownloaded ? "Không tải được trang. Kiểm tra mạng rồi tải lại." : "Phim lỗi khi tải, sửa xong là trang tự tải lại.", e);
