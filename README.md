@@ -76,7 +76,7 @@ Replace `src/scene.ts`. It exports `SHOTS`, `SHOTS_OUT`, `DURATION`, `applyEdit`
 
 Everything the studio reads from a film, including the optional hooks (the list of what is going on at each frame, looks to switch between, sound options), is in [docs/film-contract.md](docs/film-contract.md). Point the film's `AGENTS.md` at it. The studio checks every film against it on start and on each change, and says what is wrong in its terminal and on the picture.
 
-All timing lives in `src/edit.json`, in the voice's original seconds, so that actions follow the words when the voice is re-paced. Replace these with your own:
+All timing lives in `src/edit.json`, in the voice's original seconds, so that actions follow the words when the voice is re-paced. A film with a lot of keys may keep its big parts (a character's keys, camera keys, props) in files of their own and merge them into the data `src/edit.ts` passes to `setEdit`. Replace these with your own:
 
 | File | Job |
 | --- | --- |

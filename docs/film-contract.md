@@ -18,7 +18,7 @@ Everything not named here belongs to the film: its camera keys, its audio sectio
 | --- | --- |
 | `src/scene.ts` | The film. Exports below |
 | `src/edit.ts` | `export * from "live-studio/edit"` after `setEdit(data)` from `edit.json` (written by `init.mjs`) |
-| `src/edit.json` | Every time in the film, in the voice's original seconds |
+| `src/edit.json` | Every time in the film, in the voice's original seconds (big parts may live in other files that `src/edit.ts` merges in) |
 | `src/live.mjs` | Opens this film in the studio (written by `init.mjs`) |
 | `sound.py OUT.wav` | The studio's mix, plus `trials.json` beside it when the film has sound options |
 | `voice_map.py`, `voice_edit.py`, `make_lite.py` | Word times, voice edits, phone copies (stubs are fine) |
@@ -52,6 +52,8 @@ export async function buildScene(canvas, W, H, draft): Promise<Draw>;
 | `zoomOf`, `smoother`, `head`, `CELL` | optional, old | only for a camera that lives in `SHOTS`; without them **Chép** copies the camera in world terms |
 
 ### `draw.describe(t)` (optional): the list top left
+
+The page starts with it off; the viewer switches it on with `I` or in the settings, and the page remembers that.
 
 Returns what is going on at heard second `t`, read right after `draw(t)`:
 
