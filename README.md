@@ -1,91 +1,29 @@
 # Live Studio
 
-Watch a Three.js film live in the browser and leave feedback on it, from a PC or a phone. An AI agent reads the feedback and makes the changes.
-
-The creator only watches, taps and talks. Nothing in the studio can edit the film, so a stray thumb can't break the pacing.
+A review room for Three.js films: the creator watches on a PC or phone and pins notes to a moment and a spot, an AI agent reads them and changes the film, and nothing in the studio can edit the film itself.
 
 <img src="docs/studio.png" width="320" alt="The studio on a phone: the picture with a pin on the tapped ball, big play and note buttons, the timeline with words and actions, and the notes below.">
 
-## Run the demo
-
-Needs Node 22+, [Bun](https://bun.sh) and Python 3 (for the small helper scripts). ffmpeg is needed for audio on anything but the machine running it.
-
 ```bash
-bun install
-bun run demo -- 4321
+bun install && bun run demo -- 4321     # http://localhost:4321 (Vietnamese UI: Phát = play, Ghi chú = note); needs Node 22+, Bun, Python 3, ffmpeg
 ```
 
-Open http://localhost:4321. The interface text is in Vietnamese for now: **Phát** is play, **Ghi chú** is note.
+Local only and without a password: reach it from a phone through `tailscale serve` with the host name in the film's `.live_hosts` (any other name gets 403), never from the open internet.
 
-The server listens on this machine only and has no password. To use a phone, put it behind something private such as `tailscale serve`, never on the open internet. It answers only to `localhost` and IP addresses, so list the name you reach it by, such as your Tailscale machine's, in a `.live_hosts` file in the film, one per line, and keep that file out of a public repo. A page reached by any other name gets a 403.
-
-## Taking notes
-
-- Press the note button, or tap the picture to pin the exact thing you mean. Type or dictate.
-- Tap an old note to edit it in the same box, with a warning before it overwrites. Tap its time to jump there.
-- The list follows the film, keeping the note nearest the playhead in view.
-- Playing past a pinned note shows its pin and words on the picture, fading out over 3 seconds.
-- Fixed notes fold away under **Đã xong** at the bottom of the list, with what was done. **Chưa ưng** sends one back.
-
-Words aren't lost: every keystroke is kept on the device, unsent notes wait and retry when the signal drops, the file is written atomically, × moves a note to `notes/deleted.jsonl` with an undo, and copies pile up in `renders/notes_backup`.
-
-To weigh looks or sounds against each other, a film offers them as options (see below), which shows the difference at once and costs nothing. What changed between versions is the film's git history.
-
-## What the agent gets
-
-Each note in `notes/notes.jsonl` carries the time and frame, the tap position and the object under it, the 3D point, the camera, the shot and how far into it, the words and actions around the moment, whether the film was playing when the note was pressed, the device, and the film's git version. Three pictures go with it: the frame with the pin, the area under the tap, and a strip of the seconds around the moment.
-
-An agent shouldn't read that file raw:
+## On your film
 
 ```bash
-bun run notes             # index in the order written (#1 first), one line per note
-bun run notes ID ID       # everything about those notes, and the pictures to open
-bun run notes --shot 3    # everything about one shot's notes
+git clone https://github.com/Gohans1/live-studio ../live-studio && bun install --cwd ../live-studio
+node ../live-studio/init.mjs .          # bun link + four scripts + missing parts from demo/, never overwrites (--dry to preview)
+bun run studio                          # prints the creator's link (Tailscale) or what is missing; then: bun run notes [ID], bun run note done ID "...", bun run render stills|clip
 ```
 
-When a note is fixed, the agent closes it, and it folds away under **Đã xong** with these words:
+What a film must provide and every rule an agent follows: [docs/film-contract.md](docs/film-contract.md).
 
-```bash
-bun run note done ID "what changed"
-```
+## Working on the studio
 
-The steps an agent follows are in [docs/film-contract.md](docs/film-contract.md#notes-closing-them).
-
-## Draft renders
-
-`bun run render stills` and `bun run render clip`, inside the film, draw it in a headless Chrome on the GPU with the studio's own build of the film and encode it in the browser (WebCodecs, mediabunny). The options are in [docs/film-contract.md](docs/film-contract.md#draft-renders).
-
-## Use it on your own film
-
-There is one studio: this repo. A film never holds a copy, so a fix made here reaches every film the next time its studio starts.
-
-```bash
-git clone https://github.com/Gohans1/live-studio ../live-studio   # beside the film
-bun install --cwd ../live-studio
-node ../live-studio/init.mjs .          # connect this project, --dry to only see what it would do
-bun run studio                          # prints the link to open, Tailscale's when it serves this port
-```
-
-`init.mjs` registers this repo with `bun link` and adds `"live-studio": "link:live-studio"` to the film, so `node_modules/live-studio` is a link to this repo, never a copy. It adds four scripts, so every command is `bun run studio`, `notes`, `note` or `render`, and copies any part a project doesn't have yet from the demo (`src/edit.ts`, which hands `edit.json` to the studio, among them), never over one it has.
-
-The film owns everything else: `src/scene.ts`, `src/edit.json`, `sound.py`, `voice_map.py`, `assets/`, and the optional `voice_edit.py` and `make_lite.py`. The `demo/` folder is the example of all of them. The studio's Vite build finds them through two names: `film/...` is the film's `src/`, `live-studio/edit` is `src/edit.ts` here.
-
-Every film runs the same studio, so a change here affects them all. The page is a React app in `app/` (shadcn/ui on Base UI, Tailwind, Zustand) that Vite builds together with the film's code, and builds again on every save of either (src/page.mjs). An open page never reloads by itself: when the build came out different, **Có bản mới** appears on the picture and reloads at the same second when pressed, with any half-written note back in its box. A saved comment changes nothing. `edit.json` counts as code (the page takes it once, at load); the sound and the notes update in place. Live events reach the page over Server-Sent Events, which reconnect by themselves, so a phone whose screen locked picks up where it was. A change to the server, anything in `src/`, needs each studio restarted.
-
-Replace `src/scene.ts`. It exports `SHOTS`, `SHOTS_OUT`, `DURATION`, `applyEdit` and `buildScene(canvas, W, H, draft)`, which returns `draw(t)` with `draw.tools` attached. The demo scene shows the whole contract in about 80 lines, and `draw(t)` must be able to draw any moment straight away.
-
-Everything the studio reads from a film, including the optional hooks (the list of what is going on at each frame, looks to switch between, sound options), is in [docs/film-contract.md](docs/film-contract.md). Point the film's `AGENTS.md` at it. The studio checks every film against it on start and on each change, and says what is wrong in its terminal and on the picture.
-
-All timing lives in `src/edit.json`, in the voice's original seconds, so that actions follow the words when the voice is re-paced. A film with a lot of keys may keep its big parts (a character's keys, camera keys, props) in files of their own and merge them into the data `src/edit.ts` passes to `setEdit`. Replace these with your own:
-
-| File | Job |
-| --- | --- |
-| `assets/public/agent/full_voice.wav` | The voice |
-| `voice_map.py` | Word times and waveform for the timeline |
-| `sound.py` | The sound mix; the files it reads go in `package.json` `"live-studio": { "sound": [...] }` so a change to them remixes |
-| `voice_edit.py` | Optional: applies voice edits from `edit.json` |
-| `make_lite.py` | Optional: small asset copies for phones |
+`app/` is the React page (shadcn/ui on Base UI, Tailwind, Zustand) that Vite rebuilds with the film on every save (`src/page.mjs`), `src/` is the server (restart each studio after changing it), `render/` the draft renderer, and `bun run test` the tests.
 
 ## License
 
-MIT. Built on [three.js](https://threejs.org), [Vite](https://vite.dev), [React](https://react.dev), [shadcn/ui](https://ui.shadcn.com), [Base UI](https://base-ui.com), [Tailwind CSS](https://tailwindcss.com), [Hono](https://hono.dev), [Zustand](https://zustand.docs.pmnd.rs), [TanStack Hotkeys](https://tanstack.com/hotkeys), [Zod](https://zod.dev), [vite-plugin-compression2](https://github.com/nonzzz/vite-plugin-compression) and [Lucide](https://lucide.dev), all MIT except Lucide (ISC).
+MIT; built on three.js, Vite, React, shadcn/ui, Base UI, Tailwind CSS, Hono, Zustand, TanStack Hotkeys, Zod, vite-plugin-compression2 (all MIT) and Lucide (ISC).

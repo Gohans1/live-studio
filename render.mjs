@@ -4,7 +4,7 @@
 // renders/chunks/, joined losslessly into renders/draft_video.mp4. Nothing is written on any other drive.
 //   AT=40,41.5                 stills at these heard seconds (default 1), named still_<s>s.jpg
 //   NOLIST=1                   without the list of what is going on (draw.describe), to judge the picture itself
-//   CHUNKS=3,4                 re-render only those chunks and join them with the ones already there
+//   CHUNKS=3,4                 re-render only those chunks (0-based: 3 is 1:30-2:00) and join them with the ones already there
 //   INSPECT=px,py,pz,lx,ly,lz,fov  every still from this one fixed camera (the studio's free camera) instead of the film's
 //   CHECK=slide:0,108;trace:50,51,0.1  run the film's draw.checks.slide(0, 108) etc. and print the lines they return
 //   ENTRY=lab/prop.ts          run a page of the film's own instead (it imports "live-studio/lab"); LAB_VIEW=desk reaches it as cfg.lab.view
