@@ -283,7 +283,7 @@ export const fitOverlays = () => {
   list.style.setProperty("--room", `${Math.max(120, edge - list.getBoundingClientRect().left)}px`);
 };
 addEventListener("resize", () => { reviewKey = ""; S.dirty = true; });
-export const setReview = (on: boolean) => { set({ review: on }); stored.set("review", on ? "on" : "off"); reviewKey = ""; S.dirty = true; };
+export const setReview = (on: boolean) => { set({ review: on }); stored.set("reviewList", on ? "on" : "off"); reviewKey = ""; S.dirty = true; };
 export const setCaptions = (on: boolean) => { set({ captions: on }); stored.set("captions", on ? "on" : "off"); S.dirty = true; };
 export const setTryOn = (on: boolean) => { set({ tryOn: on }); stored.set("tryNow", on ? "on" : "off"); S.dirty = true; };
 export const drawPins = () => {

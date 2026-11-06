@@ -73,7 +73,7 @@ export const studio = createStore<StudioState>(() => ({
   volume: 1,
   muted: false,
   captions: storedFlag("captions"),
-  review: storedFlag("review", false), // off until switched on (I): the dev watches the picture first
+  review: storedFlag("reviewList", false), // off until switched on (I): the dev watches the picture first
   reviewAvailable: false,
   tryOn: storedFlag("tryNow"),
   loop: false,
