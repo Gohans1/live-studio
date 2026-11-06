@@ -38,15 +38,15 @@ Each note in `notes/notes.jsonl` carries the time and frame, the tap position an
 An agent shouldn't read that file raw:
 
 ```bash
-python notes_report.py             # index in the order written (#1 first), one line per note
-python notes_report.py ID ID       # everything about those notes, and the pictures to open
-python notes_report.py --shot 3    # everything about one shot's notes
+bun run notes             # index in the order written (#1 first), one line per note
+bun run notes ID ID       # everything about those notes, and the pictures to open
+bun run notes --shot 3    # everything about one shot's notes
 ```
 
 When a note is fixed, the agent closes it, and it folds away under **Đã xong** with these words:
 
 ```bash
-node node_modules/live-studio/note.mjs done ID "what changed"
+bun run note done ID "what changed"
 ```
 
 The steps an agent follows are in [docs/film-contract.md](docs/film-contract.md#notes-closing-them).
@@ -63,10 +63,10 @@ There is one studio: this repo. A film never holds a copy, so a fix made here re
 git clone https://github.com/Gohans1/live-studio ../live-studio   # beside the film
 bun install --cwd ../live-studio
 node ../live-studio/init.mjs .          # connect this project, --dry to only see what it would do
-node src/live.mjs 4321
+bun run studio                          # prints the link to open, Tailscale's when it serves this port
 ```
 
-`init.mjs` registers this repo with `bun link` and adds `"live-studio": "link:live-studio"` to the film, so `node_modules/live-studio` is a link to this repo, never a copy. It writes three small files into the film: `src/live.mjs` and `notes_report.py` open the studio on this film, and `src/edit.ts` hands `edit.json` to it. Any part a project doesn't have yet is copied from the demo, to replace.
+`init.mjs` registers this repo with `bun link` and adds `"live-studio": "link:live-studio"` to the film, so `node_modules/live-studio` is a link to this repo, never a copy. It adds four scripts, so every command is `bun run studio`, `notes`, `note` or `render`, and copies any part a project doesn't have yet from the demo (`src/edit.ts`, which hands `edit.json` to the studio, among them), never over one it has.
 
 The film owns everything else: `src/scene.ts`, `src/edit.json`, `sound.py`, `voice_map.py`, `assets/`, and the optional `voice_edit.py` and `make_lite.py`. The `demo/` folder is the example of all of them. The studio's Vite build finds them through two names: `film/...` is the film's `src/`, `live-studio/edit` is `src/edit.ts` here.
 

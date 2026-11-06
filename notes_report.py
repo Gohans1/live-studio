@@ -1,10 +1,11 @@
 """The creator's notes, for the AI about to act on them. Two levels, so a hundred notes never cost a hundred notes' worth of reading:
 
-python notes_report.py                 index of open notes in the order written (#1 first): one line each, enough to plan the round
-python notes_report.py ID [ID ...]     everything about those notes: the tap, words, actions, version, pictures to open
-python notes_report.py --shot 3        everything about one shot's notes
+bun run notes                 index of open notes in the order written (#1 first): one line each, enough to plan the round
+bun run notes ID [ID ...]     everything about those notes: the tap, words, actions, version, pictures to open
+bun run notes --shot 3        everything about one shot's notes
+(the film's script for: python node_modules/live-studio/notes_report.py, run in the film)
 Add --done to include fixed notes, --cam to include the camera line (for changing a shot's framing).
-Fixed one: node node_modules/live-studio/note.mjs done ID "what you changed" (docs/film-contract.md, "Notes").
+Fixed one: bun run note done ID "what you changed" (docs/film-contract.md, "Notes").
 
 Notes come in the order the creator wrote them, not film order: a later note often builds on, narrows or takes back an earlier
 one ("this", "still", "no, rather"), so read them in that order before fixing any. #N is a note's place in that order and never
@@ -81,7 +82,7 @@ def one_line(n):
 
 
 def index(notes):
-    print(f"{len(notes)} notes, in the order written. Film now: {film_now()}. Detail: notes_report.py ID ...\n")
+    print(f"{len(notes)} notes, in the order written. Film now: {film_now()}. Detail: bun run notes ID ...\n")
     for n in written(notes):
         print(one_line(n))
 

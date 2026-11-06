@@ -1,14 +1,16 @@
 // Connects a film project to this studio: node init.mjs PROJECT [--dry]
-// The film keeps only what is its own, plus three small files that point here. It never holds a copy of the studio,
-// so a fix made here reaches every film at once. A project without a film yet starts from the demo's parts.
+// The film keeps only what is its own, plus four package.json scripts that point here (bun run studio, notes, note, render).
+// It never holds a copy of the studio, so a fix made here reaches every film at once. What a project lacks comes from the demo,
+// and nothing it already has is overwritten (its src/edit.ts may merge files of its own).
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const STARTER = ["src/scene.ts", "src/edit.json", "voice_map.py", "sound.py", "assets/public", ".gitignore"];
-const POINTERS = {
+const STARTER = ["src/scene.ts", "src/edit.ts", "src/edit.json", "voice_map.py", "sound.py", "assets/public", ".gitignore"];
+// What the film used to hold to reach the studio; package.json scripts do it now (bun run studio, notes, note, render)
+const OLD_POINTERS = {
   "src/live.mjs": `// Opens this film in the studio, which lives in its own repo: node_modules/live-studio links to it.
 import { fileURLToPath } from "node:url";
 
@@ -23,7 +25,6 @@ from pathlib import Path
 os.chdir(Path(__file__).resolve().parent)
 runpy.run_path("node_modules/live-studio/notes_report.py", run_name="__main__")
 `,
-  "src/edit.ts": readFileSync(join(HERE, "demo/src/edit.ts"), "utf8"),
 };
 
 const args = process.argv.slice(2);
@@ -42,15 +43,25 @@ for (const f of STARTER) {
   say("starter", f);
   if (!dry) cpSync(join(HERE, "demo", f), inProject(f), { recursive: true });
 }
-for (const [f, text] of Object.entries(POINTERS)) { say("pointer", f); write(f, text); }
+for (const [f, text] of Object.entries(OLD_POINTERS)) {
+  if (existsSync(inProject(f)) && readFileSync(inProject(f), "utf8").replace(/\r\n/g, "\n") === text) { say("removed", f); if (!dry) rmSync(inProject(f)); }
+}
 
 // Linked by the name `bun link` registers, so node_modules/live-studio is this folder itself, never a copy. Bun 1.4 on
 // Windows fails a link: given as a path ("failed linking dependency"), and file: copies the folder
 const pkgFile = inProject("package.json");
 const pkg = existsSync(pkgFile) ? JSON.parse(readFileSync(pkgFile, "utf8")) : { private: true, type: "module", dependencies: { three: "0.187.0" } };
 pkg.dependencies = { ...pkg.dependencies, "live-studio": "link:live-studio" };
-pkg.scripts = { render: "node node_modules/live-studio/render.mjs", ...pkg.scripts }; // a film that renders its own way keeps its script
+const SCRIPTS = {
+  studio: "node node_modules/live-studio/src/live.mjs", // add the film's port, e.g. 4324
+  notes: "python node_modules/live-studio/notes_report.py",
+  note: "node node_modules/live-studio/note.mjs",
+  render: "node node_modules/live-studio/render.mjs",
+};
+// A script that only opened the old pointer files goes; one a film wrote its own way stays
+const old = { studio: /^node src\/live\.mjs/, notes: /notes_report\.py/ };
+pkg.scripts = { ...SCRIPTS, ...Object.fromEntries(Object.entries(pkg.scripts ?? {}).filter(([k, v]) => !old[k]?.test(v))) };
 say("linked", "live-studio -> link:live-studio");
 write("package.json", JSON.stringify(pkg, null, 2) + "\n");
 if (!dry) { run("bun link", HERE); run("bun install", PROJECT); }
-console.log(dry ? "nothing changed" : "done: node src/live.mjs");
+console.log(dry ? "nothing changed" : "done: bun run studio");

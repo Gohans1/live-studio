@@ -17,18 +17,20 @@ Everything not named here belongs to the film: its camera keys, its audio sectio
 | File | What it is |
 | --- | --- |
 | `src/scene.ts` | The film. Exports below |
-| `src/edit.ts` | `export * from "live-studio/edit"` after `setEdit(data)` from `edit.json` (written by `init.mjs`) |
+| `src/edit.ts` | `export * from "live-studio/edit"` after `setEdit(data)` from `edit.json` (the demo's, copied by `init.mjs`; merge the film's own timeline files here) |
 | `src/edit.json` | Every time in the film, in the voice's original seconds (big parts may live in other files that `src/edit.ts` merges in) |
-| `src/live.mjs` | Opens this film in the studio (written by `init.mjs`) |
+| `package.json` scripts | `studio` (`node node_modules/live-studio/src/live.mjs PORT`), `notes`, `note`, `render`, written by `init.mjs`: every command an agent needs is `bun run <name>` |
 | `sound.py OUT.wav` | The studio's mix, plus `trials.json` beside it when the film has sound options |
 | `package.json` `"live-studio": { "sound": [...] }` | The files and folders `sound.py` reads, relative to the film: a change to any of them remixes. Never list a folder the mix writes into |
 | `voice_map.py` | Word times and waveform for the timeline (needed once the film has a voice) |
 | `voice_edit.py`, `make_lite.py` | Optional: voice edits, phone copies. Leave them out until the film needs them |
 | `assets/public/` | Served as `/` |
-| `package.json` `"render": "node node_modules/live-studio/render.mjs"` | Draft renders (below). `"live-studio": { "chrome": path }` names the headless Chrome, default `tools/chrome-headless-shell/chrome-headless-shell.exe` |
+| `package.json` `"live-studio": { "chrome": path }` | The headless Chrome for draft renders (below), default `tools/chrome-headless-shell/chrome-headless-shell.exe` |
 | `lab/*.ts` | Optional pages of the film's own for a draft render, `ENTRY=lab/x.ts`. They import `config`, `log`, `still`, `done` from `live-studio/lab` |
 
-`node live-studio/init.mjs FILM` writes the pointer files, links the studio (`link:live-studio`, registered by `bun link`), and copies any part a film lacks from `demo/`.
+`node live-studio/init.mjs FILM` links the studio (`link:live-studio`, registered by `bun link`), adds the scripts, removes the pointer files older films held (`src/live.mjs`, `notes_report.py`), and copies any part a film lacks from `demo/`, never over one it has.
+
+`bun run studio` prints the creator's link: the Tailscale https name serving its port, or what is missing (Tailscale not running, no `tailscale serve` for the port, the name not in `.live_hosts`).
 
 ## `src/scene.ts`
 
@@ -140,9 +142,9 @@ Written by the studio only, at the film's root (`sound_choices.json` in films th
 
 The creator's notes land in `notes/notes.jsonl` while the studio runs.
 
-1. Read before acting: `python notes_report.py` for the index, `python notes_report.py ID` for one note with its pictures. Notes come in the order the creator wrote them (#1 first), not film order: a later note often builds on or takes back an earlier one, so read them all in that order before fixing any.
+1. Read before acting: `bun run notes` for the index, `bun run notes ID` for one note with its pictures. Notes come in the order the creator wrote them (#1 first), not film order: a later note often builds on or takes back an earlier one, so read them all in that order before fixing any.
 2. Fix it and check it the way that note asks (look at the frame, listen, run the tests).
-3. Close it: `node node_modules/live-studio/note.mjs done ID "what you changed"`, in Vietnamese and plain words, because the creator reads them under the note. The note folds away under **Đã xong** at the bottom of **Cần sửa**. A note you could not fix stays open: say why in your reply instead.
+3. Close it: `bun run note done ID "what you changed"`, in Vietnamese and plain words, because the creator reads them under the note. The note folds away under **Đã xong** at the bottom of **Cần sửa**. A note you could not fix stays open: say why in your reply instead.
 
 `done` goes through the running studio, which owns `notes.jsonl` while it runs (it records its port in `renders/live/studio.json`), and writes the file itself only when no studio runs. Never edit `notes.jsonl` by hand. **Chưa ưng** on a fixed note opens it again.
 
@@ -157,6 +159,6 @@ A page opened from a phone or over Tailscale tells the studio, once it is ready,
 ## Checklist for a new film or a new hook
 
 1. `node live-studio/init.mjs FILM`, then replace `src/scene.ts` and `src/edit.json` with the film.
-2. Start the studio. The terminal says `film contract, files: ok` and `film contract, code, found by the page: ok`, no red badge shows, and no first visit is over budget.
+2. Start the studio (`bun run studio`). The terminal says `film contract, files: ok` and `film contract, code, found by the page: ok`, no red badge shows, and no first visit is over budget.
 3. Put the film's facts in `draw.describe`, and every choice still open in `draw.variants` or `trials.json`.
 4. Point the film's `AGENTS.md` at this page.

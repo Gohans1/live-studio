@@ -1,6 +1,7 @@
-// The studio for one film: node src/live.mjs [port] [--lan] inside the film (its src/live.mjs sets LIVE_PROJECT), then open
-// http://localhost:4321. Saving the film's code offers "Có bản mới" on the page, never reloading it unasked; saving sound.py
+// The studio for one film: bun run studio inside the film (node node_modules/live-studio/src/live.mjs [port] [--lan]; the
+// film is the folder it runs in, or LIVE_PROJECT), then open http://localhost:4321 or the Tailscale link it prints. Saving the film's code offers "Có bản mới" on the page, never reloading it unasked; saving sound.py
 // or anything the film's package.json lists under "live-studio".sound remixes.
+import { execFile } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
@@ -50,5 +51,22 @@ film.start();
 http.listen(PORT, LAN ? "0.0.0.0" : "127.0.0.1", () => {
   console.log(`live at http://localhost:${PORT}`);
   writeFileSync(join(film.WORK, "studio.json"), JSON.stringify({ port: PORT })); // where note.mjs done finds the studio that owns the notes
+  tailscaleLink();
   if (LAN) for (const nets of Object.values(networkInterfaces())) for (const n of nets) if (n.family === "IPv4" && !n.internal) console.log(`no password: anyone on this network can open http://${n.address}:${PORT} and change the notes. tailscale serve is the safe way to a phone`);
 });
+
+// The link the creator opens: the Tailscale https names that serve this port. Said every start, because after a reboot
+// Tailscale is often not running yet, and a name missing from .live_hosts answers every request with 403
+function tailscaleLink() {
+  execFile("tailscale", ["serve", "status", "--json"], { timeout: 5000, windowsHide: true }, (e, out) => {
+    let web = null;
+    try { web = JSON.parse(out).Web ?? {}; } catch {}
+    if (e || !web) { console.log("Tailscale is not answering: start the Tailscale app (often not running after a reboot); its links come back with it"); return; }
+    const mine = Object.entries(web).filter(([, w]) => Object.values(w.Handlers ?? {}).some((h) => /^https?:\/\/(127\.0\.0\.1|localhost):(\d+)\/?$/.exec(h.Proxy ?? "")?.[2] === String(PORT))).map(([host]) => host);
+    if (!mine.length) { console.log(`no Tailscale link to port ${PORT}: tailscale serve --bg --https=<a free port> http://127.0.0.1:${PORT}`); return; }
+    for (const host of mine) {
+      const name = host.replace(/:\d+$/, "").toLowerCase();
+      console.log(film.hosts.includes(name) ? `creator's link: https://${host}` : `https://${host} serves this studio but answers 403: add ${name} to .live_hosts in the film`);
+    }
+  });
+}
