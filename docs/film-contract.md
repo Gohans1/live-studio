@@ -25,6 +25,8 @@ Everything not named here belongs to the film: its camera keys, its audio sectio
 | `voice_map.py` | Word times and waveform for the timeline (needed once the film has a voice) |
 | `voice_edit.py`, `make_lite.py` | Optional: voice edits, phone copies. Leave them out until the film needs them |
 | `assets/public/` | Served as `/` |
+| `package.json` `"render": "node node_modules/live-studio/render.mjs"` | Draft renders (below). `"live-studio": { "chrome": path }` names the headless Chrome, default `tools/chrome-headless-shell/chrome-headless-shell.exe` |
+| `lab/*.ts` | Optional pages of the film's own for a draft render, `ENTRY=lab/x.ts`. They import `config`, `log`, `still`, `done` from `live-studio/lab` |
 
 `node live-studio/init.mjs FILM` writes the pointer files, links the studio (`link:live-studio`, registered by `bun link`), and copies any part a film lacks from `demo/`.
 
@@ -65,6 +67,14 @@ Returns what is going on at heard second `t`, read right after `draw(t)`:
 
 `fresh` marks something that just started; it shows as NEW. Draft renders draw the same list. Name every technique and its source file, so the creator can point at it.
 
+### `draw.checks` (optional): numbers a draft render prints
+
+```ts
+{ slide(from, to) { return ["49.97-50.02 L leg cannot reach its planted sole by 4 cm"]; } }
+```
+
+`CHECK=slide:0,108 bun run render stills` calls `draw.checks.slide(0, 108)` and prints every line it returns, in the terminal of the AI that asked. Put here what a picture cannot show, such as a foot sliding over the floor, so motion is judged by numbers.
+
 ### `draw.variants` (optional): looks to switch between
 
 ```ts
@@ -91,6 +101,21 @@ The studio reads these keys. Everything else is the film's.
 ```
 
 The studio only reads `edit.json`. It never writes it. Changes come from notes, made by the agent. Saving it rebuilds the page like any code change: the page shows **Có bản mới**, and a reload has it. The film may keep its own keys in other files and merge them into the data it passes to `setEdit` in `src/edit.ts`.
+
+## Draft renders
+
+The studio renders every film the same way, with the same build the page uses, so a film keeps no renderer of its own:
+
+```bash
+AT=40,41.5 bun run render stills       # renders/still_40s.jpg ...; NOLIST=1 leaves out the list (draw.describe)
+bun run render clip                    # the film in 30 s GPU chunks (renders/chunks), joined into renders/draft_video.mp4
+CHUNKS=3 bun run render clip           # re-render one chunk after a fix, joined with the others as they are
+INSPECT=px,py,pz,lx,ly,lz,fov AT=50 bun run render stills   # from one fixed camera instead of the film's
+CHECK=slide:0,108 bun run render stills                     # draw.checks, above
+ENTRY=lab/prop.ts LAB_VIEW=desk AT=72 bun run render stills # a page of the film's own; LAB_* reach it as cfg.lab
+```
+
+Every draft frame carries `mm:ss.sss` top right and the list top left, the way the creator gives notes. The picks in `choices.json` are applied first. A whole 107 s film takes about half a minute on an RTX 2060.
 
 ## Sound options: `renders/live/trials.json`
 

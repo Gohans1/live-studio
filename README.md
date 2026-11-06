@@ -51,6 +51,10 @@ node node_modules/live-studio/note.mjs done ID "what changed"
 
 The steps an agent follows are in [docs/film-contract.md](docs/film-contract.md#notes-closing-them).
 
+## Draft renders
+
+`bun run render stills` and `bun run render clip`, inside the film, draw it in a headless Chrome on the GPU with the studio's own build of the film and encode it in the browser (WebCodecs, mediabunny). The options are in [docs/film-contract.md](docs/film-contract.md#draft-renders).
+
 ## Use it on your own film
 
 There is one studio: this repo. A film never holds a copy, so a fix made here reaches every film the next time its studio starts.

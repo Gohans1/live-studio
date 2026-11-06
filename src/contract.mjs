@@ -45,6 +45,7 @@ export const Variant = z.looseObject({
 export const Draw = z.looseObject({
   tools: Tools,
   describe: fn.optional(),
+  checks: z.record(z.string(), fn).optional(),
   variants: z.array(Variant).refine((v) => unique(v.map((x) => x.id)), "variant ids must differ").optional(),
 });
 
@@ -79,5 +80,5 @@ export const checkFiles = (files) => Object.entries(files).flatMap(([name, [sche
 
 export const checkFilm = (scene, draw) => [
   ...problems(SceneModule, scene, "src/scene.ts exports"),
-  ...(typeof draw === "function" ? problems(Draw, { tools: draw.tools, describe: draw.describe, variants: draw.variants }, "what buildScene() resolves to (draw)") : ["buildScene()\n✖ must resolve to draw(t), a function"]),
+  ...(typeof draw === "function" ? problems(Draw, { tools: draw.tools, describe: draw.describe, checks: draw.checks, variants: draw.variants }, "what buildScene() resolves to (draw)") : ["buildScene()\n✖ must resolve to draw(t), a function"]),
 ];

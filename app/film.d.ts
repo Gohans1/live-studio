@@ -32,6 +32,7 @@ declare module "film/scene" {
     (t: number): void;
     tools: Tools;
     describe?: (t: number) => ReviewSection[];
+    checks?: Record<string, (...args: number[]) => string | string[]>; // CHECK=name:args in a draft render (render.mjs)
     variants?: Variant[];
   }
   export const SHOTS: Shot[];

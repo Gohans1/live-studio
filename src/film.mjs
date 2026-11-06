@@ -9,6 +9,8 @@ import { checkFiles, Choices, DOC, Edit, problems, Trials } from "./contract.mjs
 import { createNotes } from "./notes.mjs";
 
 export const STUDIO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// One copy of three: the film's and the studio's would each otherwise bring their own, and objects from one fail instanceof in the other
+export const threeFromOf = (project) => (existsSync(join(project, "node_modules/three")) ? project : STUDIO);
 
 const debounce = (f, ms) => { let h; return (...a) => { clearTimeout(h); h = setTimeout(() => f(...a), ms); }; };
 
@@ -32,8 +34,7 @@ export const openFilm = (projectDir, { send }) => {
   // A machine's private name (Tailscale) has no place in the studio's public repo: the film lists the names it is reached by
   const HOSTS_FILE = join(PROJECT, ".live_hosts");
   const hosts = (existsSync(HOSTS_FILE) ? readFileSync(HOSTS_FILE, "utf8") : "").split(/\s+/).filter(Boolean).map((n) => n.toLowerCase());
-  // One copy of three: the film's and the studio's would each otherwise bring their own, and objects from one fail instanceof in the other
-  const threeFrom = existsSync(join(PROJECT, "node_modules/three")) ? PROJECT : STUDIO;
+  const threeFrom = threeFromOf(PROJECT);
   // What sound.py reads, so a change to any of it remixes: package.json "live-studio": { "sound": [paths] }, files or folders.
   // Never list a folder the mix writes into, or every remix starts the next. Without the key: what films made before it mixed from
   const pkg = existsSync(join(PROJECT, "package.json")) ? JSON.parse(readFileSync(join(PROJECT, "package.json"), "utf8")) : {};

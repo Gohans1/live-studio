@@ -49,6 +49,7 @@ for (const [f, text] of Object.entries(POINTERS)) { say("pointer", f); write(f, 
 const pkgFile = inProject("package.json");
 const pkg = existsSync(pkgFile) ? JSON.parse(readFileSync(pkgFile, "utf8")) : { private: true, type: "module", dependencies: { three: "0.187.0" } };
 pkg.dependencies = { ...pkg.dependencies, "live-studio": "link:live-studio" };
+pkg.scripts = { render: "node node_modules/live-studio/render.mjs", ...pkg.scripts }; // a film that renders its own way keeps its script
 say("linked", "live-studio -> link:live-studio");
 write("package.json", JSON.stringify(pkg, null, 2) + "\n");
 if (!dry) { run("bun link", HERE); run("bun install", PROJECT); }

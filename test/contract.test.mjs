@@ -24,3 +24,9 @@ test("a film is told what its draw lacks, and a complete one passes", () => {
   assert.match(checkFilm(film(), draw({ camera: undefined })).join(), /tools\.camera/);
   assert.match(checkFilm({ ...film(), SHOTS_OUT: [{ t: 4 }, { t: 0 }] }, draw()).join(), /in order of time/);
 });
+
+test("draw.checks, when a film has them, are functions by name", () => {
+  const withChecks = (checks) => Object.assign(draw(), { checks });
+  assert.deepEqual(checkFilm(film(), withChecks({ slide: () => [] })), []);
+  assert.match(checkFilm(film(), withChecks({ slide: "0,108" })).join(), /checks\.slide/);
+});
