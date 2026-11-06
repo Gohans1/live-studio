@@ -50,8 +50,7 @@ export const buildPage = (film, { onChange = () => {}, onError = () => {} } = {}
       },
       reportCompressedSize: false,
       chunkSizeWarningLimit: Infinity,
-      // edit.json is read fresh by the page (GET /api/edit.json), so saving it must not rebuild and reload anything
-      watch: { exclude: [film.EDIT] },
+      watch: {},
     },
   }).then((watcher) => {
     page.watcher = watcher;

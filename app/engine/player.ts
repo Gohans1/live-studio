@@ -3,7 +3,6 @@
 import * as THREE from "three";
 import * as FILM from "film/scene";
 import { buildScene, DURATION, SHOTS_OUT as SHOTS } from "film/scene";
-import { EDIT, setEdit } from "film/edit";
 import { checkFilm, problems, Sections } from "../../src/contract.mjs";
 import { onEvent, onHello } from "../events";
 import { AWAY, FPS, getFile, MIX_URL, PHONE, postJson, stamp, stored, wait } from "./env";
@@ -327,10 +326,6 @@ const loadContract = async () => {
 };
 
 const loadVoice = async () => { const r = await getFile("/api/voice_map.json"); if (r.ok) { S.voice = await r.json(); refreshTimes(); } };
-const loadEdit = async () => {
-  const fresh = await (await getFile("/api/edit.json")).json();
-  if (JSON.stringify(fresh) !== JSON.stringify(EDIT)) { setEdit(fresh); refreshTimes(); }
-};
 
 // ---------- Picture: fills the room it has, and a click on it pins a note there
 const fit = () => {
@@ -392,12 +387,11 @@ const listen = () => {
   onEvent("versions", loadVersions);
   onEvent("voice", loadVoice);
   onEvent("contract", loadContract);
-  onEvent("edit", loadEdit);
   // Back after the line dropped or the studio restarted: catch up on what changed meanwhile
   onHello((current, reconnect) => {
     if (!current) codeChanged();
     // Not the mix: that is the whole WAV again on every phone unlock. The rest answers "unchanged" for a few bytes
-    if (reconnect) { loadVersions(); loadNotes(); loadEdit(); loadVoice(); loadContract(); loadTrials(); }
+    if (reconnect) { loadVersions(); loadNotes(); loadVoice(); loadContract(); loadTrials(); }
   });
 };
 
@@ -416,7 +410,6 @@ export const start = async (el: Elements) => {
   fit();
   if (!AWAY) el.audio.src = MIX_URL; // on a phone line the room comes first, or the sound eats the bandwidth while the picture stays black
   flushNotes();
-  setEdit(await (await getFile("/api/edit.json")).json()); // fresher than the module: saving the edit doesn't reload the page
   FILM.applyEdit();
   S.comments = await (await getFile("/api/shots.json")).json();
   const t0 = performance.now();

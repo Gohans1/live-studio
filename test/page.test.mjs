@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -13,14 +13,14 @@ const scene = join(dir, "src/scene.ts"), original = readFileSync(scene, "utf8");
 const heard = [];
 let page;
 // Resolves once the builds a save starts are over, whatever they found: one save can fire the watcher twice
-const save = (text) => new Promise((done) => {
+const save = (text, file = scene) => new Promise((done) => {
   let started = false, quiet;
   const wait = (e) => {
     if (e.code === "START") { started = true; clearTimeout(quiet); }
     if (started && (e.code === "END" || e.code === "ERROR")) quiet = setTimeout(() => { page.watcher.off("event", wait); done(); }, 400);
   };
   page.watcher.on("event", wait);
-  writeFileSync(scene, text);
+  writeFileSync(file, text);
 });
 
 before(async () => {
@@ -76,13 +76,10 @@ test("a rebuild keeps the last build's files for pages still loading it, and cle
   assert.equal(existsSync(stale), false);
 });
 
-test("saving edit.json rebuilds nothing: the page reads it fresh", async () => {
+test("a changed edit.json is a new page, offered like code: the next reload has it", async () => {
   heard.length = 0;
-  const builds = [], count = (e) => e.code === "START" && builds.push(e.code);
-  page.watcher.on("event", count);
-  appendFileSync(join(dir, "src/edit.json"), "\n");
-  await new Promise((done) => setTimeout(done, 1500));
-  page.watcher.off("event", count);
-  assert.deepEqual(builds, []);
-  assert.deepEqual(heard, []);
+  const edit = join(dir, "src/edit.json"), before = page.html();
+  await save(JSON.stringify({ ...JSON.parse(readFileSync(edit, "utf8")), added: 1 }, null, 1), edit);
+  assert.notEqual(page.html(), before);
+  assert.deepEqual(heard, ["change"]);
 });

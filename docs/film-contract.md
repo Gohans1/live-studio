@@ -86,7 +86,7 @@ The studio reads these keys. Everything else is the film's.
 }
 ```
 
-The studio only reads `edit.json`. It never writes it. Changes come from notes, made by the agent.
+The studio only reads `edit.json`. It never writes it. Changes come from notes, made by the agent. Saving it rebuilds the page like any code change: the page shows **Có bản mới**, and a reload has it. The film may keep its own keys in other files and merge them into the data it passes to `setEdit` in `src/edit.ts`.
 
 ## Sound options: `renders/live/trials.json`
 
