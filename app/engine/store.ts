@@ -14,11 +14,9 @@ export interface Compose {
   t: number; shot: number; shotName: string; pin: Pin | null; resume: boolean; wasPlaying?: boolean; spoken?: string;
   editing?: string; time?: string; original?: string;
 }
-export interface Change { from: number | null; to: number | null; kind: "edit" | "sound"; title: string; lines: string[] }
 export interface OptionView { id: string; title: string; source?: string }
 export interface GroupView { name: string; title: string; picture: boolean; options: OptionView[]; chosen: string; pick: string; gain: number; ranges: [number, number][] }
 export interface ChipView { name: string; range: [number, number] }
-export type Tab = "open" | "diff";
 
 export interface StudioState {
   ready: boolean;
@@ -38,21 +36,11 @@ export interface StudioState {
   free: boolean;
   final: boolean;
   settingsOpen: boolean;
-  tab: Tab;
   notes: Note[];
   saved: "busy" | "fail" | null;
   compose: Compose | null;
   draft: string;
   nearNote: string | null;
-  nearChange: number | null;
-  changes: Change[];
-  versions: { id: string; at: string }[];
-  current: string | null;
-  before: string | null;
-  autoBefore: string | null;
-  seen: string | null;
-  compareStatus: string;
-  compareReady: boolean;
   groups: GroupView[];
   groupName: string | null;
   chips: ChipView[];
@@ -80,21 +68,11 @@ export const studio = createStore<StudioState>(() => ({
   free: false,
   final: false,
   settingsOpen: false,
-  tab: "open",
   notes: [],
   saved: null,
   compose: null,
   draft: "",
   nearNote: null,
-  nearChange: null,
-  changes: [],
-  versions: [],
-  current: null,
-  before: null,
-  autoBefore: null,
-  seen: null,
-  compareStatus: "",
-  compareReady: false,
   groups: [],
   groupName: null,
   chips: [],

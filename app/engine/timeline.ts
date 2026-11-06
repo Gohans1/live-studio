@@ -1,4 +1,4 @@
-// The two timelines, drawn on canvases: the whole film above (shots, voice, notes, changes, the stretch shown below) and the
+// The two timelines, drawn on canvases: the whole film above (shots, voice, notes, the stretch shown below) and the
 // stretch around the playhead below (shot names, each sentence's pace, the words, actions and sounds in lanes, option ranges).
 // Custom canvas on purpose: the waveform is drawn through the voice edit's time warp and the rows come from edit.json, which no
 // waveform or timeline library models. The studio only reads the timeline; changes are made from notes, in edit.json.
@@ -27,7 +27,6 @@ let frozenCentre: number | null = null;
 // What else the timelines mark, set by the parts that own it
 export const marks = {
   notes: () => [] as { t: number; done: boolean }[],
-  changes: () => [] as { from: number | null; to: number | null; kind: string }[],
   optionRanges: () => [] as [number, number][],
 };
 
@@ -117,7 +116,6 @@ const drawOverview = () => {
     drawWave(b, 0, DURATION, w, 2, h - 4);
   }
   g.drawImage(overBg, 0, 0, w, h);
-  for (const ch of marks.changes()) if (ch.from !== null && ch.to !== null) { g.fillStyle = ch.kind === "sound" ? "#D0A215" : "#CE5D97"; g.fillRect((ch.from / DURATION) * w - 1, h - 6, Math.max(3, ((ch.to - ch.from) / DURATION) * w), 6); }
   for (const n of marks.notes()) if (!n.done) { g.fillStyle = "#3AA99F"; g.fillRect((n.t / DURATION) * w - 1, 0, 2, 7); }
   const a = viewCentre() - shown() / 2;
   g.fillStyle = "rgba(255,255,255,.1)"; g.fillRect((a / DURATION) * w, 0, (shown() / DURATION) * w, h);
@@ -201,13 +199,6 @@ const drawDetail = () => {
   g.fillStyle = "#878580"; g.font = "10px Consolas,monospace";
   const tick = [1, 2, 5, 10, 30, 60].find((n) => (n / shown()) * w >= 56) ?? 60;
   for (let s = Math.max(0, Math.ceil(a / tick) * tick); s <= b; s += tick) { g.fillRect(X(s), h - 5, 1, 5); g.fillText(`${pad(Math.floor(s / 60))}:${pad(s % 60)}`, X(s) + 3, h - 7); }
-  // What changed since the version being compared
-  for (const ch of marks.changes()) {
-    if (ch.from === null || ch.to === null || ch.to < a || ch.from > b) continue;
-    const x0 = X(ch.from), wide = Math.max(3, X(ch.to) - x0), colour = ch.kind === "sound" ? "#D0A215" : "#CE5D97";
-    g.globalAlpha = 0.18; g.fillStyle = colour; g.fillRect(x0, 20, wide, h - 20);
-    g.globalAlpha = 1; g.fillRect(x0, 20, wide, 3);
-  }
   // Notes: a marker each, their lines faint so many of them don't drown the playhead; a done note keeps only a dim marker
   for (const n of marks.notes()) {
     if (n.t < a || n.t > b) continue;

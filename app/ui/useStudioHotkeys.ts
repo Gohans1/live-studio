@@ -2,7 +2,6 @@
 // keyboard layout; typing in the note box never reaches them
 import { useHotkeys, type UseHotkeyDefinition } from "@tanstack/react-hotkeys";
 import { AWAY, FPS } from "../engine/env";
-import { loadVersions, nextChange } from "../engine/changes";
 import { openNote } from "../engine/notes";
 import { chooseInGroup } from "../engine/options";
 import { copyCam, jumpShot, nudgeVolume, seek, setFinal, setFov, setFree, setLoop, setReview, togglePlay, toggleMute } from "../engine/player";
@@ -19,7 +18,6 @@ const volumeKey = (up: boolean): UseHotkeyDefinition => ({
 
 export function useStudioHotkeys() {
   const settingsOpen = useStudio((s) => s.settingsOpen);
-  const hasDiff = useStudio((s) => !!s.before || s.changes.length > 0), hasChanges = useStudio((s) => s.changes.length > 0);
   const reviewAvailable = useStudio((s) => s.reviewAvailable);
   const keys: UseHotkeyDefinition[] = [
     { hotkey: "Space", callback: togglePlay },
@@ -39,9 +37,6 @@ export function useStudioHotkeys() {
     { hotkey: "L", callback: () => setLoop(!get().loop) },
     { hotkey: "I", callback: () => setReview(!get().review), options: { enabled: reviewAvailable } },
     { hotkey: "M", callback: toggleMute },
-    { hotkey: "B", callback: () => { const diff = get().tab !== "diff"; set({ tab: diff ? "diff" : "open", settingsOpen: false }); if (diff) loadVersions(); }, options: { enabled: hasDiff } },
-    { hotkey: "Z", callback: () => nextChange(-1), options: { enabled: hasChanges } },
-    { hotkey: "X", callback: () => nextChange(1), options: { enabled: hasChanges } },
     { hotkey: "-", callback: () => setFov(2) },
     { hotkey: "=", callback: () => setFov(-2) },
     // A popup open on top (a "?" or a menu) takes Esc for itself first

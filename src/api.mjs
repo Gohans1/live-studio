@@ -26,7 +26,6 @@ const NoteIn = z.object({
 const NoteChange = z.object({ text: z.string().optional(), remove: z.boolean().optional(), restore: z.boolean().optional(), done: z.boolean().optional(), fix: z.looseObject({}).optional() });
 const Choose = z.object({ group: z.string().min(1), set: z.string(), gain: z.number().optional() });
 const PageProblems = z.object({ problems: z.array(z.string()) });
-const Seen = z.object({ id: z.string() });
 const PageWeight = z.object({ files: z.array(z.object({ path: z.string().max(1000), bytes: z.number().nonnegative() })).max(5000) });
 
 // Formats that are compressed inside already: trying them again only costs time on a first visit
@@ -154,13 +153,6 @@ export const createApi = (film, { page, events }) => {
       weighed = heavy?.names ?? null;
     }
     return c.text("ok");
-  });
-
-  app.get("/api/versions.json", (c) => fresh(c, film.versions.list()));
-  app.post("/api/seen", zValidator("json", Seen), (c) => { film.versions.seen(c.req.valid("json").id); return c.text("ok"); });
-  app.get("/api/compare/:a{[0-9a-f]+}/:b{[0-9a-f]+}", (c) => {
-    const r = film.versions.compare(c.req.param("a"), c.req.param("b"));
-    return r ? fresh(c, r) : c.body(null, 404);
   });
 
   app.get("/api/mix.wav", (c) => (existsSync(film.MIX) ? sendFile(c, film.MIX, { store: true }) : c.body(null, 404)));

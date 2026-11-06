@@ -62,7 +62,6 @@ const noteContext = (c: Compose) => {
   const all = voiceOut.flatMap((l) => l.words);
   const word = wordNear(c.t).word, wi = word ? all.indexOf(word) : -1;
   const beats = Object.entries(EDIT.beats).map(([id, b]) => ({ id, title: b.title, kind: b.kind, at: +fromSource(b.at).toFixed(3), dur: b.dur, sounds: b.sounds })).filter((b) => near(b.at, b.at + (b.dur ?? 0), 1.5));
-  const { tab, before: comparedTo } = get();
   return {
     playing: !!c.wasPlaying, // pressed during playback: what it's about may be a moment earlier
     rate: audio.playbackRate,
@@ -80,7 +79,6 @@ const noteContext = (c: Compose) => {
     },
     beats,
     view: { phone: PHONE, lite: !!window.__assets?.includes("lite"), canvas: [S.el.canvas.width, S.el.canvas.height], screen: [innerWidth, innerHeight] },
-    compare: tab === "diff" && comparedTo ? { before: comparedTo } : undefined,
   };
 };
 
@@ -250,7 +248,6 @@ export const saveNote = () => {
   keepUnsent([...unsent(), { note: n, img, crop, strip }]);
   flushNotes();
   closeNote();
-  set({ tab: "open" });
 };
 
 export const removeNote = (n: Note) => {
@@ -281,7 +278,6 @@ export const copyAll = () => {
 };
 // The note nearest the playhead, for the list to keep in view
 export const followNotes = () => {
-  if (get().tab !== "open") { if (get().nearNote) set({ nearNote: null }); return; }
   let near: string | null = null, best = Infinity;
   for (const n of openNotes()) { const d = Math.abs(noteAt(n) - S.t); if (d < best) { best = d; near = n.id; } }
   if (near !== get().nearNote) set({ nearNote: near });

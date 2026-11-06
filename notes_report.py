@@ -62,12 +62,7 @@ def film_now():
         described = subprocess.run(["git", "describe", "--tags", "--always", "--dirty"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     except OSError:
         described = ""
-    if described:
-        return described
-    try:
-        return json.loads((ROOT / "renders/versions/index.json").read_text(encoding="utf8"))["versions"][-1]["id"]
-    except (OSError, ValueError, KeyError, IndexError):
-        return "(no version yet)"
+    return described or "(not in git)"
 
 
 def one_line(n):
@@ -129,11 +124,6 @@ def detail(n, cam):
             print(words)
     if n.get("version"):
         print(f"said about version: {n['version']}")
-    if n.get("film"):
-        print(f"film version: {n['film']} (renders/versions/index.json)")
-    compare = n.get("context", {}).get("compare")
-    if compare:
-        print(f"said while comparing with version {compare['before']}, showing {compare['show']}")
     for fix in n.get("fixes", []):
         print(f"tried: {fix['what']} ({fix['checkpoint']})")
     if cam and n.get("cam"):

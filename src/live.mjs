@@ -1,6 +1,6 @@
 // The studio for one film: node src/live.mjs [port] [--lan] inside the film (its src/live.mjs sets LIVE_PROJECT), then open
 // http://localhost:4321. Saving the film's code offers "Có bản mới" on the page, never reloading it unasked; saving sound.py
-// or an audio file remixes.
+// or anything the film's package.json lists under "live-studio".sound remixes.
 import { writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
@@ -19,7 +19,7 @@ let film;
 try { film = openFilm(process.env.LIVE_PROJECT ?? process.cwd(), { send }); } catch (e) { console.error(e.message); process.exit(1); }
 
 const page = await buildPage(film, {
-  onChange: () => { send("code"); film.versions.changed(); },
+  onChange: () => send("code"),
   onError: (message) => send("build-error", message), // Vite prints it in this terminal itself
 });
 
@@ -44,8 +44,6 @@ const http = createServer((req, res) => {
   res.setHeader("x-content-type-options", "nosniff");
   api(req, res);
 });
-// Asset files can change where no watcher sees them: looked at while someone is watching, so a page knows soon enough
-setInterval(() => { if (events.size) film.versions.changed(); }, 30e3);
 film.start();
 
 // This machine only, unless asked: --lan opens it to the network for a phone, and nothing here asks for a password

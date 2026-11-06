@@ -6,7 +6,6 @@ import { buildScene, DURATION, SHOTS_OUT as SHOTS } from "film/scene";
 import { checkFilm, problems, Sections } from "../../src/contract.mjs";
 import { onEvent, onHello } from "../events";
 import { AWAY, FPS, getFile, MIX_URL, PHONE, postJson, stamp, stored, wait } from "./env";
-import { followChanges, loadVersions } from "./changes";
 import { flushNotes, followNotes, loadNotes, noteAt, openNote, pinsHere, restoreDraft } from "./notes";
 import { audioCtx, followChips, loadSounds, loadTrials, optionRanges } from "./options";
 import { type Elements, type Line, S } from "./state";
@@ -384,14 +383,13 @@ const listen = () => {
   onEvent("sound-start", () => say("đang trộn tiếng…"));
   onEvent("sound", () => { loadMix(); loadTrials(); say("tiếng đã cập nhật"); });
   onEvent("notes", loadNotes);
-  onEvent("versions", loadVersions);
   onEvent("voice", loadVoice);
   onEvent("contract", loadContract);
   // Back after the line dropped or the studio restarted: catch up on what changed meanwhile
   onHello((current, reconnect) => {
     if (!current) codeChanged();
     // Not the mix: that is the whole WAV again on every phone unlock. The rest answers "unchanged" for a few bytes
-    if (reconnect) { loadVersions(); loadNotes(); loadVoice(); loadContract(); loadTrials(); }
+    if (reconnect) { loadNotes(); loadVoice(); loadContract(); loadTrials(); }
   });
 };
 
@@ -401,7 +399,6 @@ export const start = async (el: Elements) => {
   THREE.DefaultLoadingManager.onError = (url) => { S.failedFile = url; };
   THREE.DefaultLoadingManager.onProgress = (_, done, total) => { if (!S.render) set({ loading: `đang dựng căn phòng... ${done}/${total}` }); };
   marks.notes = () => get().notes.map((n) => ({ t: noteAt(n), done: n.done }));
-  marks.changes = () => get().changes;
   marks.optionRanges = optionRanges;
   try { const v = Number(stored.get("volume") ?? 1); if (v > 0 && v <= 1) setVolume(v); } catch {}
   listen();
@@ -444,7 +441,6 @@ export const start = async (el: Elements) => {
   seek(S.t);
   loop();
   extras.then(() => { restoreDraft(); window.__readyAt = Date.now(); reportWeight(); });
-  loadVersions();
 };
 
 const warm = SHOTS.map((_, i) => i).sort((a, b) => Math.abs(SHOTS[a].t - S.t) - Math.abs(SHOTS[b].t - S.t));
@@ -491,7 +487,6 @@ const frame = () => {
       else if (S.finalAt !== S.t) drawFinal();
     }
     followNotes();
-    followChanges();
     stored.set("t", String(S.t), sessionStorage);
     window.__live = { t: S.t, shot: i, drawMs };
   } else if (warm.length) {

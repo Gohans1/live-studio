@@ -29,15 +29,11 @@ The server listens on this machine only and has no password. To use a phone, put
 
 Words aren't lost: every keystroke is kept on the device, unsent notes wait and retry when the signal drops, the file is written atomically, × moves a note to `notes/deleted.jsonl` with an undo, and copies pile up in `renders/notes_backup`.
 
-## What changed
-
-Every change to the film is kept as a version in `renders/versions`, 30 at most, and cheaply: `edit.json`, how loud the mix was over time, and fingerprints of the film's code and assets. The tab **Thay đổi** (B) lists what changed since the version you last watched, in words with times: edits from `edit.json`, where the sound changed, and whether code or asset files changed. Using the page counts as watching, opening it doesn't; the list over the timeline picks any other version. Marks on the timeline show each change, and Z and X jump between them.
-
-No old version is drawn. To weigh looks or sounds against each other, a film offers them as options (see below), which shows the difference at once and costs nothing.
+To weigh looks or sounds against each other, a film offers them as options (see below), which shows the difference at once and costs nothing. What changed between versions is the film's git history.
 
 ## What the agent gets
 
-Each note in `notes/notes.jsonl` carries the time and frame, the tap position and the object under it, the 3D point, the camera, the shot and how far into it, the words and actions around the moment, whether the film was playing when the note was pressed, the device, and the version of the film. Three pictures go with it: the frame with the pin, the area under the tap, and a strip of the seconds around the moment.
+Each note in `notes/notes.jsonl` carries the time and frame, the tap position and the object under it, the 3D point, the camera, the shot and how far into it, the words and actions around the moment, whether the film was playing when the note was pressed, the device, and the film's git version. Three pictures go with it: the frame with the pin, the area under the tap, and a strip of the seconds around the moment.
 
 An agent shouldn't read that file raw:
 
@@ -66,11 +62,11 @@ node ../live-studio/init.mjs .          # connect this project, --dry to only se
 node src/live.mjs 4321
 ```
 
-`init.mjs` adds a `file:` dependency, so `node_modules/live-studio` is a link to this repo, and writes three small files into the film: `src/live.mjs` and `notes_report.py` open the studio on this film, and `src/edit.ts` hands `edit.json` to it. It refuses if a file about to be removed holds changes this repo never had, so they can be moved here first. Any part a project doesn't have yet is copied from the demo, to replace.
+`init.mjs` registers this repo with `bun link` and adds `"live-studio": "link:live-studio"` to the film, so `node_modules/live-studio` is a link to this repo, never a copy. It writes three small files into the film: `src/live.mjs` and `notes_report.py` open the studio on this film, and `src/edit.ts` hands `edit.json` to it. Any part a project doesn't have yet is copied from the demo, to replace.
 
-The film owns everything else: `src/scene.ts`, `src/edit.json`, `src/timing.ts`, `voice_map.py`, `voice_edit.py`, `sound.py`, `make_lite.py`, `assets/`. The `demo/` folder is the example of all of them. The studio's Vite build finds them through two names: `film/...` is the film's `src/`, `live-studio/edit` is `src/edit.ts` here.
+The film owns everything else: `src/scene.ts`, `src/edit.json`, `sound.py`, `voice_map.py`, `assets/`, and the optional `voice_edit.py` and `make_lite.py`. The `demo/` folder is the example of all of them. The studio's Vite build finds them through two names: `film/...` is the film's `src/`, `live-studio/edit` is `src/edit.ts` here.
 
-Every film runs the same studio, so a change here affects them all. The page is a React app in `app/` (shadcn/ui on Base UI, Tailwind, Zustand) that Vite builds together with the film's code, and builds again on every save of either (src/page.mjs). An open page never reloads by itself: when the build came out different, **Có bản mới** appears on the picture and reloads at the same second when pressed, with any half-written note back in its box. A saved comment changes nothing. `edit.json`, the sound and the notes update in place. Live events reach the page over Server-Sent Events, which reconnect by themselves, so a phone whose screen locked picks up where it was. A change to the server, anything in `src/`, needs each studio restarted.
+Every film runs the same studio, so a change here affects them all. The page is a React app in `app/` (shadcn/ui on Base UI, Tailwind, Zustand) that Vite builds together with the film's code, and builds again on every save of either (src/page.mjs). An open page never reloads by itself: when the build came out different, **Có bản mới** appears on the picture and reloads at the same second when pressed, with any half-written note back in its box. A saved comment changes nothing. `edit.json` counts as code (the page takes it once, at load); the sound and the notes update in place. Live events reach the page over Server-Sent Events, which reconnect by themselves, so a phone whose screen locked picks up where it was. A change to the server, anything in `src/`, needs each studio restarted.
 
 Replace `src/scene.ts`. It exports `SHOTS`, `SHOTS_OUT`, `DURATION`, `applyEdit` and `buildScene(canvas, W, H, draft)`, which returns `draw(t)` with `draw.tools` attached. The demo scene shows the whole contract in about 80 lines, and `draw(t)` must be able to draw any moment straight away.
 
@@ -82,9 +78,9 @@ All timing lives in `src/edit.json`, in the voice's original seconds, so that ac
 | --- | --- |
 | `assets/public/agent/full_voice.wav` | The voice |
 | `voice_map.py` | Word times and waveform for the timeline |
-| `sound.py` | The sound mix |
-| `voice_edit.py` | Applying voice edits from `edit.json` (a stub here) |
-| `make_lite.py` | Small asset copies for phones (empty here) |
+| `sound.py` | The sound mix; the files it reads go in `package.json` `"live-studio": { "sound": [...] }` so a change to them remixes |
+| `voice_edit.py` | Optional: applies voice edits from `edit.json` |
+| `make_lite.py` | Optional: small asset copies for phones |
 
 ## License
 

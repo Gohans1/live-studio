@@ -1,6 +1,6 @@
 # The film contract
 
-Everything the studio reads from a film, in one place. A film that keeps to it gets the whole studio: notes, the timeline, the clock, the list of what is going on at each frame (top left), options to switch between as the film plays (right), and what changed since the last watch. The schemas in [`src/contract.mjs`](../src/contract.mjs) are the source of truth. This page explains them.
+Everything the studio reads from a film, in one place. A film that keeps to it gets the whole studio: notes, the timeline, the clock, the list of what is going on at each frame (top left), and options to switch between as the film plays (right). The schemas in [`src/contract.mjs`](../src/contract.mjs) are the source of truth. This page explains them.
 
 The studio checks a film against them on every start and every change: the film's JSON files on the server, its code in the page once built. Anything wrong is printed in the studio's terminal and shown on the picture as **PHIM SAI QUY ƯỚC**, with the file and the field to fix.
 
@@ -21,10 +21,12 @@ Everything not named here belongs to the film: its camera keys, its audio sectio
 | `src/edit.json` | Every time in the film, in the voice's original seconds (big parts may live in other files that `src/edit.ts` merges in) |
 | `src/live.mjs` | Opens this film in the studio (written by `init.mjs`) |
 | `sound.py OUT.wav` | The studio's mix, plus `trials.json` beside it when the film has sound options |
-| `voice_map.py`, `voice_edit.py`, `make_lite.py` | Word times, voice edits, phone copies (stubs are fine) |
+| `package.json` `"live-studio": { "sound": [...] }` | The files and folders `sound.py` reads, relative to the film: a change to any of them remixes. Never list a folder the mix writes into |
+| `voice_map.py` | Word times and waveform for the timeline (needed once the film has a voice) |
+| `voice_edit.py`, `make_lite.py` | Optional: voice edits, phone copies. Leave them out until the film needs them |
 | `assets/public/` | Served as `/` |
 
-`node live-studio/init.mjs FILM` writes the pointer files, and copies any part a film lacks from `demo/`.
+`node live-studio/init.mjs FILM` writes the pointer files, links the studio (`link:live-studio`, registered by `bun link`), and copies any part a film lacks from `demo/`.
 
 ## `src/scene.ts`
 

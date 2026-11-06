@@ -10,7 +10,6 @@ export const stamp = (x: number) => { const ms = Math.round(x * 1000); return `$
 export const clockText = (x: number) => `${Math.floor(x / 60)}:${(x % 60).toFixed(1).padStart(4, "0")}`;
 export const rangeText = ([a, b]: [number, number]) => (b - a < 0.05 ? clockText(a) : `${clockText(a)}–${clockText(b)}`);
 export const letter = (i: number) => String.fromCharCode(65 + i);
-export const timeOfDay = (iso: string) => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`; };
 export const wait = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
 // A phone line drops for seconds at a time: a file the page can't do without is asked for again until it comes

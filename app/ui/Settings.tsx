@@ -103,8 +103,6 @@ const KEYS: [ReactNode, ReactNode][] = [
   [<Kbd>L</Kbd>, "lặp shot"],
   [<Kbd>I</Kbd>, "danh sách kỹ thuật ở góc trái"],
   ["Lăn chuột", "trên timeline: phóng to"],
-  [<Kbd>B</Kbd>, "những gì đổi từ bản xem lần cuối"],
-  [<><Kbd>Z</Kbd><Kbd>X</Kbd></>, "chỗ đổi trước, sau"],
   [<Kbd>F</Kbd>, <>camera tự do: kéo lia, lăn tiến lùi, chuột phải dời, Shift+kéo xoay quanh, giữ <Kbd>W</Kbd><Kbd>A</Kbd><Kbd>S</Kbd><Kbd>D</Kbd><Kbd>Q</Kbd><Kbd>E</Kbd> đi (thêm Shift: nhanh gấp 3), <Kbd>-</Kbd><Kbd>=</Kbd> ống kính</>],
   [<><Kbd>K</Kbd> <Kbd>G</Kbd></>, "chép góc máy; xem final"],
   [<><Kbd>0</Kbd>–<Kbd>9</Kbd></>, "chọn phương án của nhóm đang hiện"],

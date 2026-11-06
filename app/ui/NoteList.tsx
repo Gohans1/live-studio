@@ -1,17 +1,12 @@
-// The side list: notes still to fix with the fixed ones folded away under them, and what changed since the last watched version. The list
+// The side list: notes still to fix with the fixed ones folded away under them. The list
 // keeps the item at the playhead in view, unless a finger or wheel moved it in the last few seconds or a note is being edited
 import { cn } from "cn";
 import { X } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { stamp, timeOfDay } from "../engine/env";
-import { compareWith, emptyWords, loadVersions, nextChange } from "../engine/changes";
+import { stamp } from "../engine/env";
 import { editOldNote, goToNote, historyNotes, noteAt, openNotes, removeNote, reopenNote } from "../engine/notes";
-import { seek } from "../engine/player";
-import { type Change, type Fix, type Note, set, type Tab, useStudio } from "../engine/store";
-import { HelpTip } from "./HelpTip";
+import { type Fix, type Note, useStudio } from "../engine/store";
 
 const HOLD_LIST = 4000;
 const card = "flex-none rounded-[10px] border border-transparent bg-card px-2.5 pt-1.5 pb-2.5";
@@ -63,79 +58,28 @@ function DoneCard({ note: n }: { note: Note }) {
   );
 }
 
-function ChangeCard({ change: c, near }: { change: Change; near: boolean }) {
-  const seekable = c.from !== null;
-  const body = (
-    <>
-      <div className="flex min-h-9 items-center gap-2">
-        {seekable && <span className={cn(timeButton, "inline-flex items-center rounded-md")}>{stamp(c.from!)}</span>}
-        <span className={cn("text-xs font-semibold", c.kind === "sound" ? "text-warn" : "text-primary")}>{c.title}</span>
-      </div>
-      {seekable && c.to! > c.from! + 0.01 && <small className="block text-xs text-muted-foreground">đến {stamp(c.to!)}</small>}
-      {c.lines.map((l) => <small key={l} className="block text-xs wrap-anywhere text-muted-foreground">{l}</small>)}
-    </>
-  );
-  return seekable
-    ? <button type="button" data-change={near ? "near" : undefined} className={cn(card, "w-full text-left hover:bg-raised-2", near && "border-primary bg-tint")} onClick={() => seek(c.from!)}>{body}</button>
-    : <div className={card}>{body}</div>;
-}
-
-function CompareBar() {
-  const versions = useStudio((s) => s.versions), current = useStudio((s) => s.current), before = useStudio((s) => s.before);
-  const autoBefore = useStudio((s) => s.autoBefore), seen = useStudio((s) => s.seen), status = useStudio((s) => s.compareStatus);
-  const older = versions.filter((v) => v.id !== current).reverse();
-  const items = older.map((v) => ({ value: v.id, label: `${timeOfDay(v.at)}${v.id === autoBefore && seen ? ", xem lần cuối" : ""}` }));
-  return (
-    <div className="flex flex-none flex-wrap items-center gap-1.5 px-3 pb-2">
-      <Select items={items} value={before} onValueChange={(v) => { if (v) compareWith(v as string); }}>
-        <SelectTrigger className="h-10 w-full" aria-label="So với bản nào" title="So với bản nào"><SelectValue placeholder="Chưa có bản cũ" /></SelectTrigger>
-        <SelectContent>
-          {items.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
-        </SelectContent>
-      </Select>
-      <Button variant="secondary" className="h-10" title="Z" onClick={() => nextChange(-1)}>‹ Chỗ đổi</Button>
-      <Button variant="secondary" className="h-10" title="X" onClick={() => nextChange(1)}>Chỗ đổi ›</Button>
-      <span className="text-xs whitespace-nowrap text-muted-foreground">
-        <i className="mx-1 inline-block size-2.5 rounded-xs bg-chart-5 align-[-1px]" />sửa
-        <i className="mr-1 ml-2 inline-block size-2.5 rounded-xs bg-warn align-[-1px]" />tiếng
-      </span>
-      <HelpTip label="Thay đổi">Những gì đã đổi so với bản bạn xem lần trước: thời gian, tiếng, ảnh, code. Chọn bản khác ở ô trên để so. Bấm một dòng, hoặc ‹ › (phím Z X), để nhảy tới chỗ đó.</HelpTip>
-      <span role="status" className="basis-full text-xs text-muted-foreground tabular-nums">{status}</span>
-    </div>
-  );
-}
-
 export function NoteList() {
-  const tab = useStudio((s) => s.tab), notes = useStudio((s) => s.notes), saved = useStudio((s) => s.saved);
-  const nearNote = useStudio((s) => s.nearNote), nearChange = useStudio((s) => s.nearChange), changes = useStudio((s) => s.changes);
-  const editing = useStudio((s) => s.compose?.editing), before = useStudio((s) => s.before);
+  const notes = useStudio((s) => s.notes), saved = useStudio((s) => s.saved), nearNote = useStudio((s) => s.nearNote);
+  const editing = useStudio((s) => s.compose?.editing);
   const list = useRef<HTMLDivElement>(null), touched = useRef(-1e9);
   const open = openNotes(), old = historyNotes();
-  const showDiff = !!before || changes.length > 0;
 
   useEffect(() => {
     const box = list.current;
     if (!box || editing || performance.now() - touched.current < HOLD_LIST) return;
-    const near = box.querySelector<HTMLElement>(tab === "open" ? `[data-note="${nearNote}"]` : `[data-change="near"]`);
+    const near = box.querySelector<HTMLElement>(`[data-note="${nearNote}"]`);
     if (!near) return;
-    if (tab !== "open") { near.scrollIntoView({ block: "nearest" }); return; }
     const top = near.offsetTop - box.offsetTop - (box.clientHeight - near.offsetHeight) / 2;
     box.scrollTo({ top, behavior: Math.abs(top - box.scrollTop) > 500 ? "auto" : "smooth" }); // a long way is a jump, not a slide past everything
-  }, [tab, nearNote, nearChange, editing]);
+  }, [nearNote, editing]);
 
   const savedText = saved === "fail" ? "Chưa gửi được, vẫn giữ trên máy này, đang thử lại" : saved === "busy" ? "Đang lưu…" : notes.length ? "Đã lưu hết" : "";
-  const trigger = "h-full flex-none px-2.5 text-[13px] pointer-coarse:px-3 sideways:px-2";
   return (
-    <Tabs value={tab} onValueChange={(v) => { set({ tab: v as Tab }); if (v === "diff") loadVersions(); }} className="min-h-0 flex-1 gap-0">
+    <section aria-label="Ghi chú" className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-none flex-wrap items-center gap-x-1 px-3 pt-2.5 pb-2 upright:py-1.5 sideways:py-1">
-        {/* A narrow column wraps the save status under the tabs, then lets the tabs scroll rather than push past the screen */}
-        <TabsList variant="line" className="h-8 max-w-full min-w-0 overflow-x-auto overscroll-x-contain pointer-coarse:h-10 sideways:h-9">
-          <TabsTrigger value="open" className={trigger}>Cần sửa ({open.length})</TabsTrigger>
-          {showDiff && <TabsTrigger value="diff" className={trigger}>Thay đổi ({changes.length})</TabsTrigger>}
-        </TabsList>
+        <h2 className="flex h-8 items-center px-0.5 text-[13px] font-semibold pointer-coarse:h-10 sideways:h-9">Cần sửa ({open.length})</h2>
         <span role="status" className={cn("flex-1 text-end text-xs whitespace-nowrap text-ok", saved === "busy" && "text-muted-foreground", saved === "fail" && "font-semibold whitespace-normal text-warn")}>{savedText}</span>
       </div>
-      {tab === "diff" && <CompareBar />}
       <div
         ref={list}
         data-arrow-scroll
@@ -144,9 +88,9 @@ export function NoteList() {
         onWheel={() => { touched.current = performance.now(); }}
         onTouchMove={() => { touched.current = performance.now(); }}
       >
-        {tab === "open" && (open.length ? open.map((n) => <NoteCard key={n.id} note={n} near={n.id === nearNote} editing={n.id === editing} />) : <Empty>{old.length ? "Hết việc cần sửa" : "Chưa có ghi chú"}</Empty>)}
+        {open.length ? open.map((n) => <NoteCard key={n.id} note={n} near={n.id === nearNote} editing={n.id === editing} />) : <Empty>{old.length ? "Hết việc cần sửa" : "Chưa có ghi chú"}</Empty>}
         {/* Folded by default: they are answered, and the list is for what still needs doing. Shown at 0 too, so the creator knows where fixed notes will go */}
-        {tab === "open" && notes.length > 0 && (
+        {notes.length > 0 && (
           <details className="group mt-2 flex-none">
             <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-[10px] px-2.5 text-[13px] font-semibold text-muted-foreground hover:bg-card hover:text-foreground [&::-webkit-details-marker]:hidden">
               <span aria-hidden className="mx-0.5 size-1.5 -rotate-45 border-r-[1.5px] border-b-[1.5px] border-current group-open:rotate-45" />
@@ -155,8 +99,7 @@ export function NoteList() {
             <div className="mt-1.5 flex flex-col gap-1.5">{old.length ? old.map((n) => <DoneCard key={n.id} note={n} />) : <p className="px-2.5 text-[13px] text-muted-foreground">Chưa có ghi chú nào xong. AI sửa xong ghi chú nào thì ghi chú đó chuyển xuống đây.</p>}</div>
           </details>
         )}
-        {tab === "diff" && (changes.length ? changes.map((c, i) => <ChangeCard key={`${c.title}${c.from}${i}`} change={c} near={i === nearChange} />) : <Empty>{emptyWords()}</Empty>)}
       </div>
-    </Tabs>
+    </section>
   );
 }
