@@ -2,7 +2,7 @@
 // film is the folder it runs in, or LIVE_PROJECT), then open http://localhost:4321 or the Tailscale link it prints. Saving the film's code offers "Có bản mới" on the page, never reloading it unasked; saving sound.py
 // or anything the film's package.json lists under "live-studio".sound remixes.
 import { execFile } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
 import { join } from "node:path";
@@ -18,6 +18,15 @@ const events = new Set(); // open pages, see /api/events
 const send = (event, data = "") => { for (const page of events) page.writeSSE({ event, data: String(data) }); }; // a page that left is dropped by /api/events itself
 let film;
 try { film = openFilm(process.env.LIVE_PROJECT ?? process.cwd(), { send }); } catch (e) { console.error(e.message); process.exit(1); }
+// One studio per film: it owns notes.jsonl, and note.mjs done finds it through renders/live/studio.json, which a second one
+// would take over
+try {
+  const { port } = JSON.parse(readFileSync(join(film.WORK, "studio.json"), "utf8"));
+  if (port !== PORT && (await fetch(`http://127.0.0.1:${port}/api/notes`, { signal: AbortSignal.timeout(1500) })).ok) {
+    console.error(`this film's studio already runs at http://localhost:${port}: use that one, or stop it first`);
+    process.exit(1);
+  }
+} catch { /* none recorded, or it no longer answers */ }
 
 const page = await buildPage(film, {
   onChange: () => send("code"),
